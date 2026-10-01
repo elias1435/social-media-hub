@@ -1,0 +1,169 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum SocialPlatform {
+  FACEBOOK
+  INSTAGRAM
+  WHATSAPP
+  YOUTUBE
+  TIKTOK
+  TELEGRAM
+}
+
+enum SocialAccountStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+}
+
+model Organization {
+  id        String             @id @default(cuid())
+  name      String
+  slug      String             @unique
+  status    OrganizationStatus @default(ACTIVE)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  memberships   Membership[]
+  roles         Role[]
+  socialAccounts SocialAccount[]
+  activityLogs  ActivityLog[]
+}
+
+model User {
+  id            String     @id @default(cuid())
+  name          String?
+  email         String     @unique
+  passwordHash  String?
+  status        UserStatus @default(ACTIVE)
+  isSystemAdmin Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  memberships Membership[]
+  activityLogs ActivityLog[]
+}
+
+model Membership {
+  id             String @id @default(cuid())
+  organizationId String
+  userId         String
+  roleId         String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([roleId])
+}
+
+model Role {
+  id             String @id @default(cuid())
+  organizationId String
+  name           String
+  key            String
+  description    String?
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships  Membership[]
+  permissions  RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, key])
+}
+
+model Permission {
+  id          String @id @default(cuid())
+  key         String @unique
+  name        String
+  description String?
+
+  roles RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model SocialAccount {
+  id                String              @id @default(cuid())
+  organizationId    String
+  platform          SocialPlatform
+  externalAccountId String
+  name              String
+  status            SocialAccountStatus @default(DISCONNECTED)
+
+  username String?
+  avatarUrl String?
+
+  accessTokenCiphertext  String?   @db.Text
+  refreshTokenCiphertext String?   @db.Text
+  tokenExpiresAt         DateTime?
+
+  metadata Json?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, platform, externalAccountId])
+  @@index([organizationId, platform])
+}
+
+model ActivityLog {
+  id             String  @id @default(cuid())
+  organizationId String
+  actorUserId     String?
+
+  action     String
+  entityType String?
+  entityId   String?
+  details    Json?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([actorUserId])
+}

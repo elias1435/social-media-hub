@@ -1,0 +1,6 @@
+import AppShell from "@/components/layout/AppShell";
+import PageHeader from "@/components/ui/PageHeader";
+import { Panel, PanelHeader } from "@/components/ui/Panel";
+const permissions=["View Messages","Reply Messages","View Comments","Reply Comments","Create Posts","Publish Posts","Upload Videos","Manage Ads","View Reports","Manage Users"];
+const roles: Array<[string, string[]]> = [["Super Admin", permissions], ["Manager", permissions.slice(0,9)], ["Customer Care", permissions.slice(0,4)], ["Content Team", permissions.slice(4,7)], ["Video Uploader", ["Upload Videos", "View Reports"]]];
+export default function Roles(){return <AppShell><PageHeader title="Roles & Permissions" description="Permission templates keep access secure and easy to manage." action={<button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">+ New Role</button>}/><div className="grid gap-5 xl:grid-cols-2">{roles.map(([role,perms])=><Panel key={role}><PanelHeader title={role} action={<button className="text-xs font-semibold text-blue-600">Edit</button>}/><div className="grid grid-cols-2 gap-3 p-5">{permissions.map(p=><label key={p} className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" defaultChecked={perms.includes(p)}/>{p}</label>)}</div></Panel>)}</div></AppShell>}
