@@ -75,8 +75,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             user.passwordHash
           );
 
-          console.log("AUTH PASSWORD MATCH:", passwordMatches);
-
           if (!passwordMatches) {
             return null;
           }
