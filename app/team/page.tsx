@@ -1,7 +1,144 @@
-import AppShell from "@/components/layout/AppShell";
-import PageHeader from "@/components/ui/PageHeader";
-import { Panel } from "@/components/ui/Panel";
-import StatusBadge from "@/components/ui/StatusBadge";
-import DemoAvatar from "@/components/ui/DemoAvatar";
-const users=[["Rahim Uddin","Video Uploader","Facebook, YouTube","3 Pages","Active"],["Sadia Akter","Customer Care","Facebook","2 Pages","Active"],["Karim Hossain","Customer Care","WhatsApp","3 Numbers","Active"],["Nabila Islam","Content Team","YouTube","2 Channels","Active"],["Tanvir Ahmed","Manager","All Platforms","All","Active"]];
-export default function Team(){return <AppShell><PageHeader title="Team & Permissions" description="Manage staff accounts, roles and platform access." action={<button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">+ Add User</button>}/><Panel><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="px-5 py-3">User</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Platform Access</th><th className="px-5 py-3">Accounts</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{users.map(r=><tr key={r[0]}><td className="px-5 py-4"><div className="flex items-center gap-3"><DemoAvatar name={r[0]}/><div><p className="font-medium">{r[0]}</p><p className="text-xs text-slate-400">{r[0].toLowerCase().replace(" ",".")}@company.com</p></div></div></td><td className="px-5 py-4">{r[1]}</td><td className="px-5 py-4">{r[2]}</td><td className="px-5 py-4">{r[3]}</td><td className="px-5 py-4"><StatusBadge>{r[4]}</StatusBadge></td><td className="px-5 py-4"><button className="text-xs font-semibold text-blue-600">Edit</button></td></tr>)}</tbody></table></div></Panel></AppShell>}
+import { redirect } from "next/navigation";
+
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+
+import CreateUserForm from "@/components/users/CreateUserForm";
+
+export default async function TeamPage() {
+  const session = await auth();
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  if (!session.user.isSystemAdmin) {
+    return (
+      <div className="p-6">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-600">
+          You do not have permission to manage users.
+        </div>
+      </div>
+    );
+  }
+
+  const [roles, organizations, users] =
+    await Promise.all([
+      prisma.role.findMany({
+        orderBy: {
+          name: "asc",
+        },
+
+        select: {
+          id: true,
+          name: true,
+        },
+      }),
+
+      prisma.organization.findMany({
+        orderBy: {
+          name: "asc",
+        },
+
+        select: {
+          id: true,
+          name: true,
+        },
+      }),
+
+      prisma.user.findMany({
+        orderBy: {
+          createdAt: "desc",
+        },
+
+        include: {
+          memberships: {
+            include: {
+              role: true,
+              organization: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+  return (
+    <div className="space-y-6 p-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">
+          Team / Users
+        </h1>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Manage users, client logins and access.
+        </p>
+      </div>
+
+      <CreateUserForm
+        roles={roles}
+        organizations={organizations}
+      />
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-6 py-4">
+          <h2 className="font-semibold text-slate-900">
+            Users
+          </h2>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-slate-500">
+              <tr>
+                <th className="px-6 py-3">Name</th>
+                <th className="px-6 py-3">Email</th>
+                <th className="px-6 py-3">
+                  Organization
+                </th>
+                <th className="px-6 py-3">Role</th>
+                <th className="px-6 py-3">Status</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {users.map((user) => {
+                const membership =
+                  user.memberships[0];
+
+                return (
+                  <tr
+                    key={user.id}
+                    className="border-t border-slate-100"
+                  >
+                    <td className="px-6 py-4 font-medium text-slate-800">
+                      {user.name || "—"}
+                    </td>
+
+                    <td className="px-6 py-4 text-slate-600">
+                      {user.email}
+                    </td>
+
+                    <td className="px-6 py-4 text-slate-600">
+                      {membership?.organization
+                        ?.name || "—"}
+                    </td>
+
+                    <td className="px-6 py-4 text-slate-600">
+                      {membership?.role?.name || "—"}
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                        {user.status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

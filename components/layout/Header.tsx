@@ -12,6 +12,14 @@ import {
 import { signOut } from "next-auth/react";
 
 export default function Header() {
+  async function handleLogout() {
+    await signOut({
+      redirect: false,
+    });
+
+    window.location.href = "/login";
+  }
+
   return (
     <header className="flex h-[72px] items-center justify-between border-b border-slate-200 bg-white px-6">
       <div className="flex w-full max-w-[520px] items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5">
@@ -54,13 +62,14 @@ export default function Header() {
 
         <button className="ml-2 flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-50">
           <CalendarDays size={16} />
+
           <span className="hidden xl:inline">
             Sep 1, 2026 - Sep 30, 2026
           </span>
         </button>
 
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={handleLogout}
           className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
         >
           <LogOut size={16} />
