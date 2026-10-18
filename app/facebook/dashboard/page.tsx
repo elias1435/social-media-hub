@@ -8,7 +8,7 @@ import {
   Heart,
   MessageCircle,
   Users,
-  Facebook,
+  Link2,
 } from "lucide-react";
 
 const metrics = [
@@ -36,7 +36,7 @@ export default function FacebookOverview() {
               href="/api/meta/connect"
               className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800"
             >
-              <Facebook size={16} />
+              <Link2 size={16} />
               Connect Facebook
             </a>
 
