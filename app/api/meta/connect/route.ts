@@ -26,7 +26,7 @@ export async function GET() {
     "pages_messaging",
   ].join(",");
 
-  const url = new URL("https://www.facebook.com/v24.0/dialog/oauth");
+  const url = new URL("https://www.facebook.com/v26.0/dialog/oauth");
 
   url.searchParams.set("client_id", appId);
   url.searchParams.set("redirect_uri", redirectUri);
