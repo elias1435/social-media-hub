@@ -2,7 +2,6 @@ import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
 import {
-  CheckCircle2,
   Circle,
   Link2,
   Building2,
@@ -74,11 +73,14 @@ export default function MetaConnectPage() {
 
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      {index === 0 ? (
-                        <Circle size={17} className="text-blue-600" />
-                      ) : (
-                        <Circle size={17} className="text-slate-300" />
-                      )}
+                      <Circle
+                        size={17}
+                        className={
+                          index === 0
+                            ? "text-blue-600"
+                            : "text-slate-300"
+                        }
+                      />
 
                       <h3 className="font-semibold text-slate-900">
                         {step.title}
@@ -106,7 +108,7 @@ export default function MetaConnectPage() {
               href="/api/meta/connect"
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
             >
-              <Link2 />
+              <Link2 size={17} />
               Continue with Facebook
             </a>
           </div>
