@@ -12,25 +12,22 @@ export async function GET() {
 
   const appId = process.env.META_APP_ID;
   const redirectUri = process.env.META_REDIRECT_URI;
+  const configId = process.env.META_LOGIN_CONFIG_ID;
 
-  if (!appId || !redirectUri) {
+  if (!appId || !redirectUri || !configId) {
     return NextResponse.json(
       { error: "Meta environment variables are missing." },
       { status: 500 }
     );
   }
 
-  const scopes = [
-    "pages_show_list",
-    "pages_read_engagement",
-    "pages_messaging",
-  ].join(",");
-
-  const url = new URL("https://www.facebook.com/v26.0/dialog/oauth");
+  const url = new URL(
+    "https://www.facebook.com/v26.0/dialog/oauth"
+  );
 
   url.searchParams.set("client_id", appId);
   url.searchParams.set("redirect_uri", redirectUri);
-  url.searchParams.set("scope", scopes);
+  url.searchParams.set("config_id", configId);
   url.searchParams.set("response_type", "code");
 
   return NextResponse.redirect(url);
