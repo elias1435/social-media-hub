@@ -1,6 +1,18 @@
+import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
-import { Panel } from "@/components/ui/Panel";
-import StatusBadge from "@/components/ui/StatusBadge";
-const rows=[["খামারের জন্য জিও শিট - টেকসই সমাধান!","Post","Sep 17, 2026","12.4K","1.2K"],["ট্রিপল তৈরির সম্পূর্ণ প্রক্রিয়া","Video","Sep 16, 2026","28.5K","2.1K"],["জিও কোটেড শেড - ঘর তৈরির আধুনিক সমাধান","Reel","Sep 16, 2026","8.4K","680"]];
-export default function Posts(){return <AppShell><PageHeader title="Facebook Posts" description="Published and scheduled content for Geo Market BD."/><Panel><div className="flex flex-wrap gap-2 border-b border-slate-200 p-4"><button className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">All</button><button className="rounded-lg px-3 py-2 text-xs text-slate-500">Published</button><button className="rounded-lg px-3 py-2 text-xs text-slate-500">Scheduled</button><button className="rounded-lg px-3 py-2 text-xs text-slate-500">Drafts</button></div><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="px-5 py-3">Post</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Date</th><th className="px-5 py-3">Reach</th><th className="px-5 py-3">Engagement</th><th className="px-5 py-3">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{rows.map(r=><tr key={r[0]}><td className="px-5 py-4 font-medium text-slate-800">{r[0]}</td><td className="px-5 py-4">{r[1]}</td><td className="px-5 py-4 text-slate-500">{r[2]}</td><td className="px-5 py-4">{r[3]}</td><td className="px-5 py-4">{r[4]}</td><td className="px-5 py-4"><StatusBadge>Published</StatusBadge></td></tr>)}</tbody></table></div></Panel></AppShell>}
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { decryptToken,graphGet } from "@/lib/meta-connection";
+export const dynamic="force-dynamic";
+type Post={id:string;message?:string;created_time?:string;permalink_url?:string};
+export default async function Posts({searchParams}:{searchParams:Promise<{page?:string}>}){
+ const session=await auth();const params=await searchParams;
+ const pages=session?.user?.organizationId?await prisma.socialAccount.findMany({where:{organizationId:session.user.organizationId,platform:"FACEBOOK",status:"CONNECTED"},select:{id:true,name:true,externalAccountId:true,accessTokenCiphertext:true}}):[];
+ const selected=pages.find(p=>p.id===params.page)||pages[0];
+ let posts:Post[]=[];let error="";
+ if(selected?.accessTokenCiphertext){try{const token=decryptToken(selected.accessTokenCiphertext);const data=await graphGet<{data?:Post[]}>("/"+selected.externalAccountId+"/posts",token,{fields:"id,message,created_time,permalink_url",limit:"40"});posts=data.data||[];}catch(e){error=e instanceof Error?e.message:"Could not load Page posts";}}
+ return <AppShell><PageHeader title="Facebook Posts" description="Actual published content from your connected Pages." action={<Link href="/facebook/create-post" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">+ Create Post</Link>}/>
+ <div className="rounded-xl border border-slate-200 bg-white shadow-sm"><div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-5"><span className="text-sm font-semibold">Facebook Page:</span>{pages.map(p=><Link key={p.id} href={"/facebook/posts?page="+p.id} className={`rounded-lg border px-3 py-2 text-sm ${selected?.id===p.id?"border-blue-600 bg-blue-50 text-blue-700":"border-slate-200 text-slate-600"}`}>{p.name}</Link>)}{pages.length===0&&<Link className="text-sm text-blue-600" href="/connected-accounts/meta">Connect Facebook first</Link>}</div>
+ {error?<p className="m-5 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">Meta returned an error: {error}</p>:posts.length===0?<p className="p-8 text-sm text-slate-500">No published posts returned for this Page.</p>:<div className="divide-y divide-slate-100">{posts.map(p=><div key={p.id} className="flex items-start justify-between gap-4 p-5"><div><p className="whitespace-pre-wrap text-sm text-slate-800">{p.message||"Facebook post (no text)"}</p><p className="mt-2 text-xs text-slate-400">{p.created_time?new Date(p.created_time).toLocaleString():""}</p></div>{p.permalink_url&&<a href={p.permalink_url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-sm font-semibold text-blue-600">View post</a>}</div>)}</div>}</div></AppShell>;
+}
