@@ -1,100 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { encryptToken, getPages } from "@/lib/meta-connection";
 
+function same(a: string, b: string) {
+  const x = Buffer.from(a), y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
 export async function GET(request: NextRequest) {
+  const origin = process.env.AUTH_URL || "https://social.ashikinternational.com";
+  const finish = (status: string) => {
+    const response = NextResponse.redirect(new URL("/facebook?meta=" + status, origin));
+    response.cookies.delete("meta_oauth_state");
+    return response;
+  };
   try {
     const session = await auth();
-
-    if (!session?.user) {
-      return NextResponse.redirect(
-        new URL("/login", process.env.AUTH_URL)
-      );
-    }
-
+    if (!session?.user?.organizationId) return finish("session_expired");
+    const state = request.nextUrl.searchParams.get("state") || "";
+    const expected = request.cookies.get("meta_oauth_state")?.value || "";
+    if (!state || !expected || !same(state, expected)) return finish("invalid_state");
+    if (request.nextUrl.searchParams.has("error")) return finish("cancelled");
     const code = request.nextUrl.searchParams.get("code");
-    const error = request.nextUrl.searchParams.get("error");
+    if (!code) return finish("missing_code");
+    const appId = process.env.META_APP_ID, appSecret = process.env.META_APP_SECRET, redirect = process.env.META_REDIRECT_URI;
+    if (!appId || !appSecret || !redirect) return finish("configuration");
+    const url = new URL("https://graph.facebook.com/v26.0/oauth/access_token");
+    url.searchParams.set("client_id", appId);
+    url.searchParams.set("client_secret", appSecret);
+    url.searchParams.set("redirect_uri", redirect);
+    url.searchParams.set("code", code);
+    const res = await fetch(url, { cache: "no-store" });
+    const data = await res.json();
+    if (!res.ok || !data.access_token) { console.error("Meta token exchange failed", data.error?.code); return finish("token_error"); }
 
-    if (error) {
-      console.error("META OAUTH ERROR:", error);
-
-      return NextResponse.redirect(
-        new URL("/facebook?meta=cancelled", process.env.AUTH_URL)
-      );
+    // A Business Login configuration may yield a system-user token, with asset access
+    // determined by the permissions/assets authorized in the Meta business configuration.
+    const pages = await getPages(data.access_token);
+    if (!pages.length) return finish("no_pages");
+    let count = 0;
+    for (const page of pages) {
+      if (!page.id || !page.name) continue;
+      const token = page.access_token || data.access_token;
+      await prisma.socialAccount.upsert({
+        where: { organizationId_platform_externalAccountId: { organizationId: session.user.organizationId, platform: "FACEBOOK", externalAccountId: page.id } },
+        create: { organizationId: session.user.organizationId, platform: "FACEBOOK", externalAccountId: page.id, name: page.name, status: "CONNECTED", avatarUrl: page.picture?.data?.url || null, accessTokenCiphertext: encryptToken(token), metadata: { followersCount: page.followers_count ?? null } },
+        update: { name: page.name, status: "CONNECTED", avatarUrl: page.picture?.data?.url || null, accessTokenCiphertext: encryptToken(token), metadata: { followersCount: page.followers_count ?? null } },
+      });
+      count++;
     }
-
-    if (!code) {
-      return NextResponse.redirect(
-        new URL("/facebook?meta=missing_code", process.env.AUTH_URL)
-      );
-    }
-
-    const appId = process.env.META_APP_ID;
-    const appSecret = process.env.META_APP_SECRET;
-    const redirectUri = process.env.META_REDIRECT_URI;
-
-    if (!appId || !appSecret || !redirectUri) {
-      throw new Error("Meta environment variables missing");
-    }
-
-    const tokenUrl = new URL(
-      "https://graph.facebook.com/v24.0/oauth/access_token"
-    );
-
-    tokenUrl.searchParams.set("client_id", appId);
-    tokenUrl.searchParams.set("client_secret", appSecret);
-    tokenUrl.searchParams.set("redirect_uri", redirectUri);
-    tokenUrl.searchParams.set("code", code);
-
-    const tokenResponse = await fetch(tokenUrl);
-
-    const tokenData = await tokenResponse.json();
-
-    if (!tokenResponse.ok) {
-      console.error("META TOKEN ERROR:", tokenData);
-
-      return NextResponse.redirect(
-        new URL("/facebook?meta=token_error", process.env.AUTH_URL)
-      );
-    }
-
-    const userAccessToken = tokenData.access_token;
-
-    const pagesResponse = await fetch(
-      `https://graph.facebook.com/v24.0/me/accounts?fields=id,name,access_token,picture&access_token=${encodeURIComponent(
-        userAccessToken
-      )}`,
-      {
-        cache: "no-store",
-      }
-    );
-
-    const pagesData = await pagesResponse.json();
-
-    if (!pagesResponse.ok) {
-      console.error("META PAGE ERROR:", pagesData);
-
-      return NextResponse.redirect(
-        new URL("/facebook?meta=pages_error", process.env.AUTH_URL)
-      );
-    }
-
-    console.log(
-      "META CONNECTED PAGES:",
-      pagesData.data?.map((page: any) => ({
-        id: page.id,
-        name: page.name,
-      }))
-    );
-
-    return NextResponse.redirect(
-      new URL("/facebook?meta=success", process.env.AUTH_URL)
-    );
+    await prisma.activityLog.create({ data: { organizationId: session.user.organizationId, actorUserId: session.user.id, action: "META_PAGES_CONNECTED", entityType: "SocialAccount", details: { count } } });
+    return finish("success");
   } catch (error) {
-    console.error("META CALLBACK ERROR:", error);
-
-    return NextResponse.redirect(
-      new URL("/facebook?meta=error", process.env.AUTH_URL)
-    );
+    console.error("Meta connection failed", error instanceof Error ? error.message : "Unknown error");
+    return finish("error");
   }
 }
