@@ -22,9 +22,9 @@ import {
 
 const menuItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
-  { label: "Facebook Pages (8)", icon: PanelsTopLeft, href: "/facebook" },
-  { label: "YouTube Channels (8)", icon: PlaySquare, href: "/youtube" },
-  { label: "WhatsApp Numbers (8)", icon: MessageCircle, href: "/whatsapp" },
+  { label: "Facebook Pages", icon: PanelsTopLeft, href: "/facebook" },
+  { label: "YouTube Channels", icon: PlaySquare, href: "/youtube" },
+  { label: "WhatsApp Numbers", icon: MessageCircle, href: "/whatsapp" },
   { label: "Ads Manager", icon: Megaphone, href: "/ads-manager" },
   { label: "Post / Video", icon: CalendarDays, href: "/post-video" },
   { label: "Content Planner", icon: CalendarDays, href: "/content-planner" },
