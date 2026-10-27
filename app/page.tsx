@@ -11,7 +11,7 @@ export default async function Home(){
   prisma.socialAccount.findMany({where:{organizationId,platform:"FACEBOOK"},select:{id:true,name:true,status:true,metadata:true},orderBy:{updatedAt:"desc"}}),
   prisma.membership.count({where:{organizationId}}),
   prisma.activityLog.findMany({where:{organizationId},orderBy:{createdAt:"desc"},take:8,select:{id:true,action:true,createdAt:true}})
- ]):[[],0,[]] as const;
+ ]):[[],0,[]];
  const connected=pages.filter(p=>p.status==="CONNECTED");
  const cards=[{label:"Connected Facebook Pages",value:connected.length,icon:Link2},{label:"Team members",value:users,icon:Users},{label:"Recent activities",value:activities.length,icon:Activity}];
  return <AppShell><div className="space-y-6"><div><h2 className="text-2xl font-bold">Welcome back!</h2><p className="mt-1 text-sm text-slate-500">Live workspace overview for {session?.user?.organizationName||"your organization"}.</p></div>
