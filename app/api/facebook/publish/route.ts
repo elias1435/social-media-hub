@@ -3,28 +3,88 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptToken } from "@/lib/meta-connection";
 
+const GRAPH = "https://graph.facebook.com/v26.0";
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+function failed(error: string, status: number) {
+  return NextResponse.json({ error }, { status });
+}
 export async function POST(request: NextRequest) {
- const session = await auth();
- const organizationId = session?.user?.organizationId;
- if (!organizationId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
- const body = await request.json().catch(() => null);
- const id = typeof body?.pageId === "string" ? body.pageId : "";
- const message = typeof body?.message === "string" ? body.message.trim() : "";
- if (!id || !message || message.length > 10000) return NextResponse.json({ error: "Choose a Page and enter a message (up to 10,000 characters)." }, { status: 400 });
- const account = await prisma.socialAccount.findFirst({ where: { id, organizationId, platform: "FACEBOOK", status: "CONNECTED" } });
- if (!account?.accessTokenCiphertext) return NextResponse.json({ error: "This Facebook Page is not connected." }, { status: 404 });
- try {
-   const token = decryptToken(account.accessTokenCiphertext);
-   const form = new URLSearchParams({ message });
-   const response = await fetch("https://graph.facebook.com/v26.0/" + encodeURIComponent(account.externalAccountId) + "/feed", {
-     method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/x-www-form-urlencoded" }, body: form, cache: "no-store",
-   });
-   const result = await response.json();
-   if (!response.ok || !result.id) return NextResponse.json({ error: result.error?.message || "Meta declined this post. Check pages_manage_posts permission." }, { status: 422 });
-   await prisma.activityLog.create({ data: { organizationId, actorUserId: session.user.id, action: "FACEBOOK_POST_PUBLISHED", entityType: "SocialAccount", entityId: account.id, details: { postId: result.id } } });
-   return NextResponse.json({ ok: true, postId: result.id });
- } catch (e) {
-   console.error("FACEBOOK PUBLISH:", e instanceof Error ? e.message : "Unknown error");
-   return NextResponse.json({ error: "Could not publish this post. Try reconnecting the Page." }, { status: 500 });
- }
+  const session = await auth();
+  const organizationId = session?.user?.organizationId;
+  if (!organizationId) return failed("Unauthorized", 401);
+  const contentType = request.headers.get("content-type") || "";
+  let pageId = "", message = "", mode = "now", scheduleAt = "", upload: File | null = null;
+  if (contentType.includes("multipart/form-data")) {
+    const data = await request.formData().catch(() => null);
+    if (!data) return failed("Invalid form data", 400);
+    pageId = String(data.get("pageId") || "");
+    message = String(data.get("message") || "").trim();
+    mode = String(data.get("mode") || "now");
+    scheduleAt = String(data.get("scheduleAt") || "");
+    const selected = data.get("image");
+    if (selected instanceof File && selected.size > 0) upload = selected;
+  } else if (contentType.includes("application/json")) {
+    const data = await request.json().catch(() => null);
+    pageId = typeof data?.pageId === "string" ? data.pageId : "";
+    message = typeof data?.message === "string" ? data.message.trim() : "";
+    mode = typeof data?.mode === "string" ? data.mode : "now";
+    scheduleAt = typeof data?.scheduleAt === "string" ? data.scheduleAt : "";
+  } else return failed("Unsupported request format", 415);
+  if (!pageId || pageId.length > 100 || message.length > 10000 || (!message && !upload)) {
+    return failed("Choose a Page and provide text or an image.", 400);
+  }
+  if (!["now","schedule"].includes(mode)) return failed("Invalid publishing option", 400);
+  if (upload && (upload.size > MAX_IMAGE_BYTES || !ACCEPTED_TYPES.has(upload.type))) {
+    return failed("Please upload a JPG, PNG or WEBP image under 8 MB.", 400);
+  }
+  if (mode === "schedule" && upload) return failed("Scheduling image posts is not enabled yet.", 400);
+  let publishTime: number | undefined;
+  if (mode === "schedule") {
+    const date = new Date(scheduleAt);
+    publishTime = Math.floor(date.getTime()/1000);
+    const now = Math.floor(Date.now()/1000);
+    if (!Number.isFinite(publishTime) || publishTime < now + 11*60 || publishTime > now + 29*86400) {
+      return failed("Choose a scheduled time between 11 minutes and 29 days from now.", 400);
+    }
+  }
+  const account = await prisma.socialAccount.findFirst({
+    where: { id: pageId, organizationId, platform: "FACEBOOK", status: "CONNECTED" },
+  });
+  if (!account?.accessTokenCiphertext) return failed("This Facebook Page is not connected.", 404);
+  try {
+    const token = decryptToken(account.accessTokenCiphertext);
+    let response: Response;
+    if (upload) {
+      const body = new FormData();
+      body.set("source", upload, upload.name || "photo.jpg");
+      body.set("caption", message);
+      response = await fetch(GRAPH + "/" + encodeURIComponent(account.externalAccountId) + "/photos", {
+        method: "POST", headers: { Authorization: "Bearer " + token }, body, cache: "no-store",
+      });
+    } else {
+      const body = new URLSearchParams({ message });
+      if (publishTime) {
+        body.set("published", "false");
+        body.set("scheduled_publish_time", String(publishTime));
+      }
+      response = await fetch(GRAPH + "/" + encodeURIComponent(account.externalAccountId) + "/feed", {
+        method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/x-www-form-urlencoded" },
+        body, cache: "no-store",
+      });
+    }
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.id) return failed(result.error?.message || "Meta rejected this post. Check Page publishing permissions.", 422);
+    await prisma.activityLog.create({
+      data: { organizationId, actorUserId: session.user.id,
+        action: publishTime ? "FACEBOOK_POST_SCHEDULED" : "FACEBOOK_POST_PUBLISHED",
+        entityType: "SocialAccount", entityId: account.id,
+        details: { postId: result.id, mode, mediaType: upload ? "image" : "text", scheduledAt: publishTime ? new Date(publishTime*1000).toISOString() : null },
+      },
+    }).catch(error => console.error("Facebook publish audit failed:", error));
+    return NextResponse.json({ ok: true, postId: result.id, scheduled: Boolean(publishTime) });
+  } catch (error) {
+    console.error("Facebook publish request failed:", error instanceof Error ? error.message : "Unknown error");
+    return failed("Unable to reach Meta. Please retry or reconnect your Page.", 502);
+  }
 }
