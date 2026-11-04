@@ -1,3 +1,4 @@
+import PageNavigation from "@/components/facebook/PageNavigation";
 import PostCard from "@/components/facebook/PostCard";
 import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
@@ -13,7 +14,7 @@ export default async function Posts({searchParams}:{searchParams:Promise<{page?:
  const selected=pages.find(p=>p.id===params.page)||pages[0];
  let posts:Post[]=[];let error="";
  if(selected?.accessTokenCiphertext){try{const token=decryptToken(selected.accessTokenCiphertext);const data=await graphGet<{data?:Post[]}>("/"+selected.externalAccountId+"/posts",token,{fields:"id,message,created_time,permalink_url,full_picture,status_type",limit:"40"});posts=data.data||[];}catch(e){error=e instanceof Error?e.message:"Could not load Page posts";}}
- return <AppShell><PageHeader title="Facebook Posts" description="Actual published content from your connected Pages." action={<Link href="/facebook/create-post" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">+ Create Post</Link>}/>
- <div className="rounded-xl border border-slate-200 bg-white shadow-sm"><div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-5"><span className="text-sm font-semibold">Facebook Page:</span>{pages.map(p=><Link key={p.id} href={"/facebook/posts?page="+p.id} className={`rounded-lg border px-3 py-2 text-sm ${selected?.id===p.id?"border-blue-600 bg-blue-50 text-blue-700":"border-slate-200 text-slate-600"}`}>{p.name}</Link>)}{pages.length===0&&<Link className="text-sm text-blue-600" href="/connected-accounts/meta">Connect Facebook first</Link>}</div>
+ return <AppShell><PageHeader title="Facebook Posts" description="Actual published content from your connected Pages." action={<Link href={selected?"/facebook/create-post?page="+selected.id:"/facebook/create-post"} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">+ Create Post</Link>}/>
+ {selected&&<PageNavigation accountId={selected.id} active="all-posts"/>}<div className="rounded-xl border border-slate-200 bg-white shadow-sm"><div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-5"><span className="text-sm font-semibold">Facebook Page:</span>{pages.map(p=><Link key={p.id} href={"/facebook/posts?page="+p.id} className={`rounded-lg border px-3 py-2 text-sm ${selected?.id===p.id?"border-blue-600 bg-blue-50 text-blue-700":"border-slate-200 text-slate-600"}`}>{p.name}</Link>)}{pages.length===0&&<Link className="text-sm text-blue-600" href="/connected-accounts/meta">Connect Facebook first</Link>}</div>
  {error?<p className="m-5 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">Meta returned an error: {error}</p>:posts.length===0?<p className="p-8 text-sm text-slate-500">No published posts returned for this Page.</p>:<div className="divide-y divide-slate-100">{posts.map(p=><PostCard key={p.id} post={p} />)}</div>}</div></AppShell>;
 }
