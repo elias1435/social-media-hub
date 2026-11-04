@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, CalendarDays, ScrollText, FileText, LayoutDashboard, MessageCircle, MessagesSquare, FileText, Plus, PlaySquare, Settings } from "lucide-react";
+import { BarChart3, CalendarDays, ScrollText, FileText, LayoutDashboard, MessageCircle, MessagesSquare, Plus, PlaySquare, Settings } from "lucide-react";
 type Item = { label:string; href:string; icon:typeof LayoutDashboard; note?:string };
 export default function PageNavigation({ accountId, active="overview" }: {accountId:string;active?:string}) {
  const id=encodeURIComponent(accountId);
@@ -12,7 +12,7 @@ export default function PageNavigation({ accountId, active="overview" }: {accoun
   {label:"Analytics",href:"/analytics?page="+id,icon:BarChart3},
   {label:"Planner",href:"/content-planner?page="+id,icon:CalendarDays},
   {label:"Activity",href:"/facebook/"+id+"/activity",icon:ScrollText},
-  {label:"PlaySquare / Reels",href:"/facebook/upload-video?page="+id,icon:PlaySquare,note:"Setup"},
+  {label:"Video / Reels",href:"/facebook/upload-video?page="+id,icon:PlaySquare,note:"Setup"},
   {label:"Settings",href:"/facebook/"+id+"/settings",icon:Settings},
  ];
  const current=(item:Item)=>item.label.toLowerCase().replaceAll(" ","-")===active || (active==="overview"&&item.label==="Overview");
