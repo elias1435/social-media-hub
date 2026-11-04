@@ -13,7 +13,7 @@ export default function PageNavigation({ accountId, active="overview" }: {accoun
   {label:"Planner",href:"/content-planner?page="+id,icon:CalendarClock},
   {label:"Activity",href:"/facebook/"+id+"/activity",icon:History},
   {label:"Video / Reels",href:"/facebook/upload-video?page="+id,icon:Video,note:"Setup"},
-  {label:"Connections",href:"/facebook",icon:Settings2},
+  {label:"Settings",href:"/facebook/"+id+"/settings",icon:Settings2},
  ];
  const current=(item:Item)=>item.label.toLowerCase().replaceAll(" ","-")===active || (active==="overview"&&item.label==="Overview");
  return <nav aria-label="Facebook Page tools" className="mb-6 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
