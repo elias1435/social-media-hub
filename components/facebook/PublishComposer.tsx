@@ -32,8 +32,8 @@ export default function PublishComposer({ pages, selected }: { pages: Page[]; se
  function discardDraft(){window.localStorage.removeItem(DRAFT_KEY);setDraft(null);toast.success("Draft removed");}
  function chooseImage(event:ChangeEvent<HTMLInputElement>){
   const file=event.target.files?.[0]||null;
-  if(file && (!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>8*1024*1024)){
-    toast.error("Choose a JPG, PNG or WEBP smaller than 8 MB");event.target.value="";setImage(null);return;
+  if(file && (!["image/jpeg","image/png"].includes(file.type)||file.size>8*1024*1024)){
+    toast.error("Choose a JPG or PNG smaller than 8 MB");event.target.value="";setImage(null);return;
   }
   setImage(file);
  }
@@ -45,7 +45,11 @@ export default function PublishComposer({ pages, selected }: { pages: Page[]; se
   try{
    const form=new FormData();
    form.set("pageId",pageId);form.set("message",message);form.set("mode",mode);
-   if(mode==="schedule")form.set("scheduleAt",new Date(scheduleAt).toISOString());
+   if(mode==="schedule"){
+    const parsed=new Date(scheduleAt);
+    if(!Number.isFinite(parsed.getTime()))throw new Error("Choose a valid scheduling date");
+    form.set("scheduleAt",parsed.toISOString());
+   }
    if(image)form.set("image",image);
    const res=await fetch("/api/facebook/publish",{method:"POST",body:form});
    const data=await res.json();
@@ -64,7 +68,7 @@ export default function PublishComposer({ pages, selected }: { pages: Page[]; se
     <h2 className="text-lg font-bold">Create Facebook Post</h2>
     <label className="mt-5 block text-sm font-semibold">Facebook Page<select value={pageId} onChange={e=>setPageId(e.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 p-3 font-normal">{pages.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
     <label className="mt-5 block text-sm font-semibold">Caption / message<textarea value={message} onChange={e=>setMessage(e.target.value)} rows={8} maxLength={10000} placeholder="Write something to share…" className="mt-2 w-full rounded-lg border border-slate-200 p-3 font-normal"/></label><div className="mt-1 text-right text-xs text-slate-400">{message.length}/10,000 characters</div>
-    <label className="mt-5 flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-slate-200 p-7 text-center hover:border-blue-300"><ImagePlus className="text-blue-600"/><span className="text-sm font-semibold">{image?image.name:"Attach an image (optional)"}</span><span className="text-xs text-slate-500">JPG, PNG, WEBP · max 8 MB · publish now</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseImage} className="max-w-full text-xs"/></label>{image&&<button type="button" onClick={()=>setImage(null)} className="mt-3 text-sm font-semibold text-red-600">Remove image</button>}
+    <label className="mt-5 flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-slate-200 p-7 text-center hover:border-blue-300"><ImagePlus className="text-blue-600"/><span className="text-sm font-semibold">{image?image.name:"Attach an image (optional)"}</span><span className="text-xs text-slate-500">JPG, PNG · max 8 MB · publish now</span><input type="file" accept="image/jpeg,image/png" onChange={chooseImage} className="max-w-full text-xs"/></label>{image&&<button type="button" onClick={()=>setImage(null)} className="mt-3 text-sm font-semibold text-red-600">Remove image</button>}
    </div>
    <div className="space-y-4"><div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="font-bold">Publishing options</h2>
     <label className="mt-4 flex items-center gap-3 rounded-lg border border-slate-200 p-4 text-sm"><input type="radio" name="mode" checked={mode==="now"} onChange={()=>setMode("now")}/>Publish now</label>
