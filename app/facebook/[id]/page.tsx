@@ -1,3 +1,5 @@
+import PageSyncButton from "@/components/facebook/PageSyncButton";
+import PostCard from "@/components/facebook/PostCard";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
@@ -14,7 +16,7 @@ type Info = {
   followers_count?: number; fan_count?: number; link?: string;
   picture?: { data?: { url?: string } };
 };
-type Post = { id: string; message?: string; created_time?: string; permalink_url?: string };
+type Post = { id: string; message?: string; created_time?: string; permalink_url?: string; full_picture?: string; status_type?: string };
 type Feed = { data?: Post[] };
 export default async function FacebookPageDetails({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -45,7 +47,7 @@ export default async function FacebookPageDetails({ params }: { params: Promise<
       }
       try {
         const feed = await graphGet<Feed>("/" + encodeURIComponent(account.externalAccountId) + "/posts", token, {
-          fields: "id,message,created_time,permalink_url", limit: "8",
+          fields: "id,message,created_time,permalink_url,full_picture,status_type", limit: "8",
         });
         posts = feed.data || [];
       } catch {
@@ -64,6 +66,8 @@ export default async function FacebookPageDetails({ params }: { params: Promise<
     <PageHeader title={title} description="Facebook Page overview and connection details"
       action={<div className="flex gap-2">
         <Link href="/facebook" className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold">All Pages</Link>
+        {account.status === "CONNECTED" && <PageSyncButton accountId={account.id}/>}
+        <Link href={"/facebook/posts?page="+account.id} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold">All Posts</Link>
         <a href={pageUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white"><ExternalLink size={15}/>View on Facebook</a>
       </div>}
     />
@@ -85,7 +89,7 @@ export default async function FacebookPageDetails({ params }: { params: Promise<
     <div className="mt-6 rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 px-5 py-4"><h3 className="font-bold">Recent Page Posts</h3><p className="mt-1 text-xs text-slate-500">Real posts returned by Meta; no demo content</p></div>
       {postsError ? <p className="px-5 py-6 text-sm text-amber-700">{postsError}</p> : posts.length === 0 ? <p className="px-5 py-8 text-sm text-slate-500">No posts returned for this Page.</p> :
-        <div className="divide-y divide-slate-100">{posts.map(post => <div key={post.id} className="flex items-start justify-between gap-4 px-5 py-4"><div><p className="whitespace-pre-wrap text-sm text-slate-700">{post.message || "Page post"}</p><p className="mt-2 text-xs text-slate-400">{post.created_time ? new Date(post.created_time).toLocaleString() : ""}</p></div>{post.permalink_url && <a href={post.permalink_url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-xs font-semibold text-blue-600">Open post</a>}</div>)}</div>}
+        <div className="divide-y divide-slate-100">{posts.map(post => <PostCard key={post.id} post={post} />)}</div>}
     </div>
   </AppShell>;
 }
