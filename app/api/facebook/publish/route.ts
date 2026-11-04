@@ -5,7 +5,7 @@ import { decryptToken } from "@/lib/meta-connection";
 
 const GRAPH = "https://graph.facebook.com/v26.0";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png"]);
 function failed(error: string, status: number) {
   return NextResponse.json({ error }, { status });
 }
@@ -16,6 +16,8 @@ export async function POST(request: NextRequest) {
   const contentType = request.headers.get("content-type") || "";
   let pageId = "", message = "", mode = "now", scheduleAt = "", upload: File | null = null;
   if (contentType.includes("multipart/form-data")) {
+    const declaredSize=Number(request.headers.get("content-length") || 0);
+    if (declaredSize > MAX_IMAGE_BYTES + 100000) return failed("Upload exceeds 8 MB.", 413);
     const data = await request.formData().catch(() => null);
     if (!data) return failed("Invalid form data", 400);
     pageId = String(data.get("pageId") || "");
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
   if (!["now","schedule"].includes(mode)) return failed("Invalid publishing option", 400);
   if (upload && (upload.size > MAX_IMAGE_BYTES || !ACCEPTED_TYPES.has(upload.type))) {
-    return failed("Please upload a JPG, PNG or WEBP image under 8 MB.", 400);
+    return failed("Please upload a JPG or PNG image under 8 MB.", 400);
   }
   if (mode === "schedule" && upload) return failed("Scheduling image posts is not enabled yet.", 400);
   let publishTime: number | undefined;
