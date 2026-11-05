@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { hasOrgPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { decryptToken } from "@/lib/meta-connection";
 
@@ -13,6 +14,7 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   const organizationId = session?.user?.organizationId;
   if (!organizationId) return failed("Unauthorized", 401);
+  if (!await hasOrgPermission(session.user.id, organizationId, "facebook.posts.publish")) return failed("Forbidden", 403);
   const contentType = request.headers.get("content-type") || "";
   let pageId = "", message = "", mode = "now", scheduleAt = "", upload: File | null = null;
   if (contentType.includes("multipart/form-data")) {
