@@ -1,3 +1,5 @@
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
@@ -7,6 +9,9 @@ type Account={id:string;name?:string;account_id?:string;currency?:string};
 type Campaign={id:string;name?:string;objective?:string;optimization_goal?:string;effective_status?:string};
 type Insight={campaign_id?:string;adset_id?:string;ad_id?:string;spend?:string;impressions?:string;clicks?:string;reach?:string};
 export default async function Ads({searchParams}:{searchParams:Promise<{account?:string;view?:string}>}){
+ const session=await auth();
+ if(!session?.user)redirect("/login");
+ if(!session.user.isSystemAdmin)return <AppShell><PageHeader title="Meta Ads Manager" description="Administrator access required."/><div className="rounded-xl border border-amber-200 bg-white p-6 text-sm">Only a system administrator can access server-authorized Ads Manager data. Ad accounts are not yet assigned to individual organizations.</div></AppShell>;
  const {account,view}=await searchParams;
  const level=view==="adsets"?"adsets":view==="ads"?"ads":"campaigns";
  const insightLevel=level==="adsets"?"adset":level==="ads"?"ad":"campaign";
