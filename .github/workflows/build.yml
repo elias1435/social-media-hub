@@ -1,0 +1,26 @@
+name: Build verification
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  next-build:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: mysql://build:build@127.0.0.1:3306/social_hub
+      AUTH_SECRET: local-build-only-secret-not-for-production
+      AUTH_URL: http://localhost:3000
+      META_APP_ID: "000000000000000"
+      META_APP_SECRET: local-build-only
+      META_REDIRECT_URI: http://localhost:3000/api/meta/callback
+      META_LOGIN_CONFIG_ID: "000000000000000"
+      SOCIAL_TOKEN_ENCRYPTION_KEY: local-build-only-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run build
