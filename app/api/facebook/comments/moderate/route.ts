@@ -1,3 +1,4 @@
+import { hasOrgPermission } from "@/lib/permissions";
 import { NextRequest,NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -5,6 +6,7 @@ import { decryptToken } from "@/lib/meta-connection";
 export async function POST(request:NextRequest){
  const session=await auth();const org=session?.user?.organizationId;
  if(!org)return NextResponse.json({error:"Unauthorized"},{status:401});
+ if(!await hasOrgPermission(session.user.id,org,"facebook.comments.reply"))return NextResponse.json({error:"Forbidden"},{status:403});
  const body=await request.json().catch(()=>null);
  const id=typeof body?.accountId==="string"?body.accountId:"";
  const commentId=typeof body?.commentId==="string"?body.commentId:"";
