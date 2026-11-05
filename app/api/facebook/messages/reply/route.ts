@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
  const conversationId=typeof body?.conversationId==="string"?body.conversationId:"";
  const recipientId=typeof body?.recipientId==="string"?body.recipientId:"";
  const message=typeof body?.message==="string"?body.message.trim():"";
- if(!accountId||!/^[0-9_]+$/.test(conversationId)||!/^[0-9]+$/.test(recipientId)||!message||message.length>2000)return NextResponse.json({error:"Invalid Messenger request"},{status:400});
+ if(!accountId||!/^[a-zA-Z0-9_]+$/.test(conversationId)||!/^[0-9]+$/.test(recipientId)||!message||message.length>2000)return NextResponse.json({error:"Invalid Messenger request"},{status:400});
  const account=await prisma.socialAccount.findFirst({where:{id:accountId,organizationId,platform:"FACEBOOK",status:"CONNECTED"}});
  if(!account?.accessTokenCiphertext)return NextResponse.json({error:"Page not connected"},{status:404});
  try {
