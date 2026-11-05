@@ -1,3 +1,4 @@
+import { hasOrgPermission } from "@/lib/permissions";
 import { NextRequest,NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -8,6 +9,7 @@ const MAX_SIZE=20*1024*1024;
 export async function POST(request:NextRequest){
  const session=await auth();const organizationId=session?.user?.organizationId;
  if(!organizationId)return NextResponse.json({error:"Unauthorized"},{status:401});
+ if(!await hasOrgPermission(session.user.id,organizationId,"facebook.posts.publish"))return NextResponse.json({error:"Forbidden"},{status:403});
  const length=Number(request.headers.get("content-length")||0);
  if(length>MAX_SIZE+100000)return NextResponse.json({error:"Video upload exceeds the 20 MB limit"},{status:413});
  if(!(request.headers.get("content-type")||"").includes("multipart/form-data"))return NextResponse.json({error:"Expected multipart form data"},{status:415});
