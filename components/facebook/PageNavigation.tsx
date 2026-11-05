@@ -14,6 +14,8 @@ export default function PageNavigation({ accountId, active="overview" }: {accoun
   {label:"Activity",href:"/facebook/"+id+"/activity",icon:ScrollText},
   {label:"Video / Reels",href:"/facebook/upload-video?page="+id,icon:PlaySquare,note:"Video only"},
   {label:"Settings",href:"/facebook/"+id+"/settings",icon:Settings},
+  {label:"Instagram",href:"/instagram",icon:PlaySquare},
+  {label:"Ads Manager",href:"/ads-manager",icon:BarChart3},
  ];
  const current=(item:Item)=>item.label.toLowerCase().replaceAll(" ","-")===active || (active==="overview"&&item.label==="Overview");
  return <nav aria-label="Facebook Page tools" className="mb-6 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
