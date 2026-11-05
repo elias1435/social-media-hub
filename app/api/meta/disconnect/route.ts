@@ -1,3 +1,4 @@
+import { hasOrgPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -6,6 +7,7 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   const orgId = session?.user?.organizationId;
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!await hasOrgPermission(session.user.id,orgId,"social_accounts.manage")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const body = await request.json().catch(() => ({}));
   if (typeof body.id !== "string") return NextResponse.json({ error: "Missing page" }, { status: 400 });
   const result = await prisma.socialAccount.updateMany({
