@@ -8,12 +8,14 @@ export default function PageNavigation({ accountId, active="overview" }: {accoun
   {label:"All Posts",href:"/facebook/posts?page="+id,icon:FileText},
   {label:"Create Post",href:"/facebook/create-post?page="+id,icon:FileText},
   {label:"Comments",href:"/facebook/comments?page="+id,icon:MessageCircle},
-  {label:"Inbox",href:"/facebook/messages?page="+id,icon:MessagesSquare,note:"Setup"},
+  {label:"Inbox",href:"/facebook/messages?page="+id,icon:MessagesSquare,note:"Permissions"},
   {label:"Analytics",href:"/analytics?page="+id,icon:BarChart3},
   {label:"Planner",href:"/content-planner?page="+id,icon:CalendarDays},
   {label:"Activity",href:"/facebook/"+id+"/activity",icon:ScrollText},
-  {label:"Video / Reels",href:"/facebook/upload-video?page="+id,icon:PlaySquare,note:"Setup"},
+  {label:"Video / Reels",href:"/facebook/upload-video?page="+id,icon:PlaySquare,note:"Video only"},
   {label:"Settings",href:"/facebook/"+id+"/settings",icon:Settings},
+  {label:"Instagram",href:"/instagram",icon:PlaySquare},
+  {label:"Ads Manager",href:"/ads-manager",icon:BarChart3},
  ];
  const current=(item:Item)=>item.label.toLowerCase().replaceAll(" ","-")===active || (active==="overview"&&item.label==="Overview");
  return <nav aria-label="Facebook Page tools" className="mb-6 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">

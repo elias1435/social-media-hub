@@ -7,6 +7,7 @@ import {
   PanelsTopLeft,
   PlaySquare,
   MessageCircle,
+  Camera,
   Megaphone,
   CalendarDays,
   MessagesSquare,
@@ -23,6 +24,7 @@ import {
 const menuItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
   { label: "Facebook Pages", icon: PanelsTopLeft, href: "/facebook" },
+  { label: "Instagram Accounts", icon: Camera, href: "/instagram" },
   { label: "YouTube Channels", icon: PlaySquare, href: "/youtube" },
   { label: "WhatsApp Numbers", icon: MessageCircle, href: "/whatsapp" },
   { label: "Ads Manager", icon: Megaphone, href: "/ads-manager" },
