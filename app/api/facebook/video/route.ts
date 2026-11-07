@@ -24,7 +24,7 @@ export async function POST(request:NextRequest){
  if(!page?.accessTokenCiphertext)return NextResponse.json({error:"Page not connected"},{status:404});
  try{
   const report=await inspectFacebookPageToken(page.accessTokenCiphertext,page.externalAccountId);
-  if(report.valid===false||report.pageToken&&report.pageMatches===false||report.scopes.length>0&&!report.granted.pages_manage_posts){
+  if(report.valid===false||report.scopes.length>0&&!report.granted.pages_manage_posts){
     return NextResponse.json({error:"Meta has not authorized video publishing for this connection. Check the Page token and pages_manage_posts permission under Page Tools → Diagnostics, then reauthorize the Page.",code:"META_PUBLISH_PERMISSION",diagnosticsUrl:"/facebook/"+page.id+"/diagnostics"},{status:403});
   }
   const payload=new FormData();
