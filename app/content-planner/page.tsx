@@ -21,7 +21,8 @@ export default async function Planner({searchParams}:{searchParams:Promise<{page
   where:{organizationId:session.user.organizationId,id:{in:ids}},select:{id:true,name:true},
  }):[];
  const nameById=new Map(pages.map(p=>[p.id,p.name]));
- const selected=page&&pages.some(p=>p.id===page)?page:null;
+ const selectedAccount=page&&session?.user?.organizationId?await prisma.socialAccount.findFirst({where:{id:page,organizationId:session.user.organizationId,platform:"FACEBOOK"},select:{id:true}}):null;
+ const selected=selectedAccount?.id||null;
  return <AppShell>
   <PageHeader title="Content Planner" description="Publishing activity recorded by Social Media Hub. Scheduled posts are handled by Meta." action={<Link href={selected?"/facebook/create-post?page="+selected:"/facebook/create-post"} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">+ Create Facebook Post</Link>}/>
   {selected&&<PageNavigation accountId={selected} active="planner"/>}

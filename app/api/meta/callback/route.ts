@@ -42,10 +42,13 @@ export async function GET(request: NextRequest) {
     let count = 0;
     for (const page of pages) {
       if (!page.id || !page.name) continue;
+      // Keep system-user tokens from Business Login for existing read access, but
+      // record when Meta did not return a dedicated Page access token.
+      const pageTokenReturned = Boolean(page.access_token);
       const token = page.access_token || data.access_token;
       await prisma.socialAccount.upsert({
         where: { organizationId_platform_externalAccountId: { organizationId: session.user.organizationId, platform: "FACEBOOK", externalAccountId: page.id } },
-        create: { organizationId: session.user.organizationId, platform: "FACEBOOK", externalAccountId: page.id, name: page.name, status: "CONNECTED", avatarUrl: page.picture?.data?.url || null, accessTokenCiphertext: encryptToken(token), metadata: { followersCount: page.followers_count ?? null } },
+        create: { organizationId: session.user.organizationId, platform: "FACEBOOK", externalAccountId: page.id, name: page.name, status: "CONNECTED", avatarUrl: page.picture?.data?.url || null, accessTokenCiphertext: encryptToken(token), metadata: { followersCount: page.followers_count ?? null, tokenSource: pageTokenReturned ? "PAGE" : "BUSINESS_LOGIN" } },
         update: { name: page.name, status: "CONNECTED", avatarUrl: page.picture?.data?.url || null, accessTokenCiphertext: encryptToken(token), metadata: { followersCount: page.followers_count ?? null } },
       });
       count++;
