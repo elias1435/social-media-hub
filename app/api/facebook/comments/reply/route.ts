@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   const accountId = typeof payload?.accountId === "string" ? payload.accountId : "";
   const commentId = typeof payload?.commentId === "string" ? payload.commentId : "";
   const message = typeof payload?.message === "string" ? payload.message.trim() : "";
-  if (!accountId || !/^\d+_\d+$/.test(commentId) || !message || message.length > 8000) {
+  if (!accountId || !/^[0-9]+(?:_[0-9]+)?$/.test(commentId) || !message || message.length > 8000) {
     return NextResponse.json({ error: "Invalid comment or reply." }, { status: 400 });
   }
   const account = await prisma.socialAccount.findFirst({
