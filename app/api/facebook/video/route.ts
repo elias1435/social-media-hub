@@ -1,46 +1,137 @@
-import { hasOrgPermission } from "@/lib/permissions";
-import { NextRequest,NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptToken } from "@/lib/meta-connection";
-import { inspectFacebookPageToken } from "@/lib/meta-capabilities";
+import { hasOrgPermission } from "@/lib/permissions";
 
-export const runtime="nodejs";
-const MAX_SIZE=20*1024*1024;
-export async function POST(request:NextRequest){
- const session=await auth();const organizationId=session?.user?.organizationId;
- if(!organizationId)return NextResponse.json({error:"Unauthorized"},{status:401});
- if(!await hasOrgPermission(session.user.id,organizationId,"facebook.posts.publish"))return NextResponse.json({error:"Forbidden"},{status:403});
- const length=Number(request.headers.get("content-length")||0);
- if(length>MAX_SIZE+100000)return NextResponse.json({error:"Video upload exceeds the 20 MB limit"},{status:413});
- if(!(request.headers.get("content-type")||"").includes("multipart/form-data"))return NextResponse.json({error:"Expected multipart form data"},{status:415});
- const form=await request.formData().catch(()=>null);
- if(!form)return NextResponse.json({error:"Invalid upload"},{status:400});
- const pageId=form.get("pageId"),description=form.get("description"),video=form.get("video");
- if(typeof pageId!=="string"||typeof description!=="string"||description.length>5000||!(video instanceof File)||video.size===0||video.size>MAX_SIZE||!["video/mp4","video/quicktime"].includes(video.type)){
-  return NextResponse.json({error:"Choose an MP4 or MOV video up to 20 MB and a connected Page"},{status:400});
- }
- const page=await prisma.socialAccount.findFirst({where:{id:pageId,organizationId,platform:"FACEBOOK",status:"CONNECTED"}});
- if(!page?.accessTokenCiphertext)return NextResponse.json({error:"Page not connected"},{status:404});
- try{
-  const report=await inspectFacebookPageToken(page.accessTokenCiphertext,page.externalAccountId);
-  if(report.valid===false||report.scopes.length>0&&!report.granted.pages_manage_posts){
-    return NextResponse.json({error:"Meta has not authorized video publishing for this connection. Check the Page token and pages_manage_posts permission under Page Tools → Diagnostics, then reauthorize the Page.",code:"META_PUBLISH_PERMISSION",diagnosticsUrl:"/facebook/"+page.id+"/diagnostics"},{status:403});
+export const runtime = "nodejs";
+const API = "https://graph-video.facebook.com/v26.0";
+const CHUNK_LIMIT = 16 * 1024 * 1024;
+const EXPIRES_IN_SECONDS = 4 * 60 * 60;
+
+type MetaResult = {
+  id?: string; video_id?: string; upload_session_id?: string;
+  start_offset?: string; end_offset?: string; success?: boolean;
+  error?: { message?: string; code?: number; error_subcode?: number };
+};
+type SessionData = { accountId: string; organizationId: string; userId: string; uploadId: string; videoId: string; total: number; exp: number };
+const fail = (error: string, status = 400) => NextResponse.json({ error }, { status });
+
+function sessionSecret() {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret || secret.length < 16) throw new Error("AUTH_SECRET must be configured");
+  return secret;
+}
+function sign(value: string) { return createHmac("sha256", sessionSecret()).update(value).digest("base64url"); }
+function seal(value: SessionData) {
+  const body = Buffer.from(JSON.stringify(value)).toString("base64url");
+  return body + "." + sign(body);
+}
+function unseal(token: string): SessionData | null {
+  const parts=token.split(".");
+  if(parts.length!==2) return null;
+  const expected=Buffer.from(sign(parts[0]));
+  const received=Buffer.from(parts[1]);
+  if(expected.length!==received.length || !timingSafeEqual(expected,received))return null;
+  try {
+    const value=JSON.parse(Buffer.from(parts[0],"base64url").toString("utf8")) as SessionData;
+    if(!value.exp || value.exp<Date.now()/1000 || !/^\d+$/.test(value.uploadId) || !/^\d+$/.test(value.videoId))return null;
+    return value;
+  }catch{return null;}
+}
+async function metaPost(pageId:string, token:string, body:URLSearchParams | FormData):Promise<MetaResult> {
+  const response=await fetch(API+"/"+encodeURIComponent(pageId)+"/videos", {
+    method:"POST",
+    headers:{Authorization:"Bearer "+token,...(body instanceof URLSearchParams?{"Content-Type":"application/x-www-form-urlencoded"}:{})},
+    body,cache:"no-store"
+  });
+  const result=await response.json().catch(()=>({})) as MetaResult;
+  if(!response.ok || result.error)throw new Error(result.error?.message||"Meta rejected the video upload step.");
+  return result;
+}
+function offsets(result:MetaResult) {
+  const start=Number(result.start_offset);
+  const end=Number(result.end_offset);
+  if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||end<start)
+    throw new Error("Meta returned invalid upload offsets.");
+  return {start,end};
+}
+
+export async function POST(request:NextRequest) {
+  const session=await auth();
+  const org=session?.user?.organizationId;
+  const userId=session?.user?.id;
+  if(!org||!userId)return fail("Unauthorized",401);
+  if(!await hasOrgPermission(userId,org,"facebook.posts.publish"))return fail("Your role cannot publish Facebook videos.",403);
+
+  const contentType=request.headers.get("content-type")||"";
+  let payload: {action?:string;accountId?:string;fileSize?:number;description?:string;sessionToken?:string;startOffset?:number};
+  let chunk:File|null=null;
+  if(contentType.includes("multipart/form-data")){
+    const length=Number(request.headers.get("content-length")||0);
+    if(length>CHUNK_LIMIT+100000)return fail("This upload chunk exceeds the server's transfer limit.",413);
+    const form=await request.formData().catch(()=>null);
+    if(!form)return fail("Invalid upload chunk.");
+    payload={action:String(form.get("action")||""),accountId:String(form.get("accountId")||""),sessionToken:String(form.get("sessionToken")||""),startOffset:Number(form.get("startOffset"))};
+    const entry=form.get("chunk");
+    chunk=entry instanceof File?entry:null;
+  } else if(contentType.includes("application/json")){
+    payload=await request.json().catch(()=>({}));
+  } else return fail("Unsupported request format.",415);
+
+  const action=payload.action;
+  const accountId=payload.accountId||"";
+  if(!["start","transfer","finish"].includes(action||"")||!accountId)return fail("Invalid upload action.");
+  const account=await prisma.socialAccount.findFirst({where:{id:accountId,organizationId:org,platform:"FACEBOOK",status:"CONNECTED"}});
+  if(!account?.accessTokenCiphertext)return fail("Facebook Page is not connected.",404);
+  const pageToken=decryptToken(account.accessTokenCiphertext);
+
+  try {
+    if(action==="start"){
+      const size=Number(payload.fileSize);
+      if(!Number.isSafeInteger(size)||size<=0)return fail("Invalid video size.");
+      // No product-level 20 MB restriction: Meta will enforce platform limits.
+      const result=await metaPost(account.externalAccountId,pageToken,
+        new URLSearchParams({upload_phase:"start",file_size:String(size)}));
+      if(!result.upload_session_id||!result.video_id)throw new Error("Meta did not create an upload session.");
+      const position=offsets(result);
+      const value:SessionData={accountId,organizationId:org,userId,uploadId:result.upload_session_id,videoId:result.video_id,total:size,exp:Math.floor(Date.now()/1000)+EXPIRES_IN_SECONDS};
+      return NextResponse.json({ok:true,sessionToken:seal(value),videoId:value.videoId,...position,chunkLimit:CHUNK_LIMIT});
+    }
+
+    const value=typeof payload.sessionToken==="string"?unseal(payload.sessionToken):null;
+    if(!value||value.accountId!==accountId||value.organizationId!==org||value.userId!==userId)
+      return fail("Upload session is invalid or expired. Start again.",403);
+
+    if(action==="transfer"){
+      const start=Number(payload.startOffset);
+      if(!chunk||!chunk.size||chunk.size>CHUNK_LIMIT||!Number.isSafeInteger(start)||start<0||start+chunk.size>value.total)
+        return fail("Invalid chunk or offset.");
+      const body=new FormData();
+      body.set("upload_phase","transfer");
+      body.set("upload_session_id",value.uploadId);
+      body.set("start_offset",String(start));
+      body.set("video_file_chunk",chunk,"video-part.bin");
+      const result=await metaPost(account.externalAccountId,pageToken,body);
+      return NextResponse.json({ok:true,...offsets(result)});
+    }
+
+    const description=typeof payload.description==="string"?payload.description.trim():"";
+    if(description.length>5000)return fail("Description is too long.");
+    const result=await metaPost(account.externalAccountId,pageToken,new URLSearchParams({
+      upload_phase:"finish",upload_session_id:value.uploadId,description,published:"true"
+    }));
+    if(result.success!==true&&!(result.id||result.video_id))throw new Error("Meta has not confirmed video publication.");
+    await prisma.activityLog.create({data:{
+      organizationId:org,actorUserId:userId,action:"FACEBOOK_VIDEO_UPLOADED",
+      entityType:"SocialAccount",entityId:account.id,
+      details:{videoId:value.videoId,fileSize:value.total,uploadMethod:"CHUNKED"}
+    }}).catch(error=>console.error("Video activity log failure",error));
+    return NextResponse.json({ok:true,videoId:value.videoId,note:"Meta accepted the video. Processing and publishing may still be underway."});
+  }catch(error){
+    const message=error instanceof Error?error.message:"Meta video upload failed.";
+    console.error("Facebook video upload step failed:",message);
+    return fail(message,422);
   }
-  const payload=new FormData();
-  payload.set("source",video,video.name||"video.mp4");payload.set("description",description);
-  payload.set("published","true");
-  const response=await fetch("https://graph-video.facebook.com/v26.0/"+encodeURIComponent(page.externalAccountId)+"/videos",{method:"POST",headers:{Authorization:"Bearer "+decryptToken(page.accessTokenCiphertext)},body:payload,cache:"no-store"});
-  const data=await response.json().catch(()=>({}));
-  if(!response.ok||!data.id){
-    const code=data.error?.code;
-    const permissionError=code===100||code===10||code===200;
-    return NextResponse.json({error:permissionError?"Meta rejected video publishing for this Page. Check pages_manage_posts, the Page publishing task and your Meta app authorization in Page Tools → Diagnostics. Original error: "+(data.error?.message||"Permission denied"):data.error?.message||"Meta rejected the video upload.",code:permissionError?"META_PUBLISH_PERMISSION":"META_UPLOAD_FAILED",diagnosticsUrl:"/facebook/"+page.id+"/diagnostics"},{status:permissionError?403:422});
-  }
-  await prisma.activityLog.create({data:{organizationId,actorUserId:session.user.id,action:"FACEBOOK_VIDEO_UPLOADED",entityType:"SocialAccount",entityId:page.id,details:{videoId:data.id,fileSize:video.size}}}).catch(()=>{});
-  return NextResponse.json({ok:true,videoId:data.id,note:"Meta accepted the upload. Facebook may still be processing the video."});
- }catch(e){
-  console.error("FACEBOOK_VIDEO_UPLOAD_ERROR",e instanceof Error?e.message:"Unknown");
-  return NextResponse.json({error:"Upload could not complete. Retry with a smaller file."},{status:502});
- }
 }

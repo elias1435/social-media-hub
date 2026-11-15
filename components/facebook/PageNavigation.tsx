@@ -8,7 +8,7 @@ export default function PageNavigation({ accountId, active="overview" }: {accoun
   {label:"All Posts",href:"/facebook/posts?page="+id,icon:FileText},
   {label:"Create Post",href:"/facebook/create-post?page="+id,icon:FileText},
   {label:"Comments",href:"/facebook/comments?page="+id,icon:MessageCircle},
-  {label:"Inbox",href:"/facebook/messages?page="+id,icon:MessagesSquare,note:"Permissions"},
+  {label:"Inbox",href:"/facebook/messages?page="+id,icon:MessagesSquare},
   {label:"Analytics",href:"/analytics?page="+id,icon:BarChart3},
   {label:"Planner",href:"/content-planner?page="+id,icon:CalendarDays},
   {label:"Activity",href:"/facebook/"+id+"/activity",icon:ScrollText},
