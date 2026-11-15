@@ -78,7 +78,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <p className="mt-6 text-center text-xs text-slate-400">
+            <nav aria-label="Legal information" className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-slate-500"><Link href="/privacy-policy" className="hover:text-blue-700 hover:underline">Privacy Policy</Link><Link href="/terms-of-service" className="hover:text-blue-700 hover:underline">Terms of Service</Link><Link href="/data-deletion" className="hover:text-blue-700 hover:underline">Data Deletion</Link></nav>
+            <p className="mt-4 text-center text-xs text-slate-400">
               © 2026 Ashik International. All rights reserved.
             </p>
           </div>
