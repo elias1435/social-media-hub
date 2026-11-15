@@ -35,7 +35,14 @@ export async function POST(request: NextRequest) {
    body:sendBody,cache:"no-store"
   });
   const data=await response.json().catch(()=>({}));
-  if(!response.ok||!data.message_id)return NextResponse.json({error:data.error?.message||"Messenger rejected this reply. Check messaging permissions and conversation window."},{status:422});
+  if(!response.ok||!data.message_id){
+    const metaError=data.error||{};
+    const msg=typeof metaError.message==="string"?metaError.message:"Messenger rejected this reply. Check permissions and the permitted messaging window.";
+    const reviewRequired=/cannot message users who are not admins|developers or testers|permission is reviewed|app is live/i.test(msg);
+    const windowExpired=/24.hour|messaging window|outside the allowed|outside.*window/i.test(msg);
+    const code=reviewRequired?"META_APP_REVIEW_REQUIRED":windowExpired?"META_MESSAGING_WINDOW":metaError.code===10||metaError.code===200?"META_PERMISSION_DENIED":"META_SEND_REJECTED";
+    return NextResponse.json({error:msg,code,metaCode:metaError.code??null},{status:422});
+  }
   await prisma.activityLog.create({data:{organizationId,actorUserId:session.user.id,action:"FACEBOOK_MESSENGER_REPLIED",entityType:"SocialAccount",entityId:account.id,details:{conversationId,messageId:data.message_id}}}).catch(()=>{});
   return NextResponse.json({ok:true,messageId:data.message_id});
  }catch(e){
