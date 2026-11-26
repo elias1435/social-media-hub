@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { hasOrgPermission } from "@/lib/permissions";
 import { decryptToken,graphGet } from "@/lib/meta-connection";
+import { notifyWorkspaceUser } from "@/lib/notifications";
 const fail=(error:string,status=400)=>NextResponse.json({error},{status});
 async function access(permission:string){
  const session=await auth();const org=session?.user?.organizationId,user=session?.user?.id;
@@ -46,8 +47,7 @@ export async function POST(request:NextRequest){
  const thread=await prisma.messengerThread.upsert({where:{organizationId_socialAccountId_conversationId:{organizationId:login.org,socialAccountId:accountId,conversationId}},create:{organizationId:login.org,socialAccountId:accountId,conversationId,assignedToId:assignedToId??null,leadStatus:leadStatus||"NEW",state:state||"OPEN",labels:labels||[]},update:{...(assignedToId!==undefined?{assignedToId}:{}),...(leadStatus!==undefined?{leadStatus}:{}),...(state!==undefined?{state}:{}),...(labels!==undefined?{labels}:{})}});
  if(note)await prisma.messengerNote.create({data:{threadId:thread.id,authorId:login.user,text:note}});
  if(assignedToId&&assignedToId!==login.user&&body?.assignedToId!==undefined){
-  const settings=await prisma.organizationSetting.findUnique({where:{organizationId:login.org}});
-  if(settings?.notifyInApp!==false)await prisma.notification.create({data:{organizationId:login.org,userId:assignedToId,title:"Messenger conversation assigned",description:"A Facebook Page conversation was assigned to you.",href:"/facebook/messages?page="+encodeURIComponent(accountId)}}).catch(()=>{});
+  await notifyWorkspaceUser({organizationId:login.org,userId:assignedToId,title:"Messenger conversation assigned",description:"A Facebook Page conversation was assigned to you.",href:"/facebook/messages?page="+encodeURIComponent(accountId)}).catch(()=>{});
  }
  await prisma.activityLog.create({data:{organizationId:login.org,actorUserId:login.user,action:"MESSENGER_THREAD_UPDATED",entityType:"MessengerThread",entityId:thread.id,details:{leadStatus:leadStatus||null,state:state||null,hasNote:Boolean(note)}}}).catch(()=>{});
  return NextResponse.json({ok:true});
