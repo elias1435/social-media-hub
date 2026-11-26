@@ -20,7 +20,7 @@ export default async function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <Sidebar permissions={permissions} systemAdmin={Boolean(user?.isSystemAdmin)} />
       <div className="min-h-screen lg:pl-[260px]">
-        <Header permissions={permissions} userName={user?.name || "User"} roleName={user?.roleName || "Member"} activity={visibleActivity.map(a=>({id:a.id,action:a.action,createdAt:a.createdAt.toISOString()}))} />
+        <Header permissions={permissions} systemAdmin={Boolean(user?.isSystemAdmin)} userName={user?.name || "User"} roleName={user?.roleName || "Member"} activity={visibleActivity.map(a=>({id:a.id,action:a.action,createdAt:a.createdAt.toISOString()}))} />
         <main className="p-4 sm:p-6">{children}</main>
         <footer className="flex flex-wrap justify-center gap-x-5 gap-y-2 px-4 pb-6 text-xs text-slate-500"><Link href="/privacy-policy" className="hover:text-blue-600">Privacy Policy</Link><Link href="/terms-of-service" className="hover:text-blue-600">Terms of Service</Link><Link href="/data-deletion" className="hover:text-blue-600">Data Deletion</Link></footer>
       </div>
