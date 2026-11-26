@@ -7,6 +7,7 @@ const fail=(error:string,status=400)=>NextResponse.json({error},{status});
 export async function GET(){
  const session=await auth(),org=session?.user?.organizationId;
  if(!org||!session.user?.id)return fail("Unauthorized",401);
+ if(!await hasOrgPermission(session.user.id,org,"facebook.posts.view"))return fail("Forbidden",403);
  const jobs=await prisma.automationJob.findMany({where:{organizationId:org},orderBy:{createdAt:"desc"},take:100,select:{id:true,kind:true,status:true,scheduledAt:true,completedAt:true,attempts:true,lastError:true,createdAt:true}});
  return NextResponse.json({jobs});
 }
