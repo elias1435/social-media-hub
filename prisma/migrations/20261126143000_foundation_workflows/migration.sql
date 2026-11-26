@@ -50,7 +50,7 @@ CREATE TABLE `MessengerThread` (
     `state` VARCHAR(191) NOT NULL DEFAULT 'OPEN',
     `labels` JSON NULL,
     `updatedAt` DATETIME(3) NOT NULL,
-    UNIQUE INDEX `MessengerThread_organizationId_socialAccountId_conversationId_key`(`organizationId`, `socialAccountId`, `conversationId`),
+    UNIQUE INDEX `MessengerThread_org_account_conv_unique`(`organizationId`, `socialAccountId`, `conversationId`),
     INDEX `MessengerThread_organizationId_assignedToId_idx`(`organizationId`, `assignedToId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -89,7 +89,7 @@ CREATE TABLE `AnalyticsSnapshot` (
     `metric` VARCHAR(191) NOT NULL,
     `value` DOUBLE NOT NULL,
     `date` DATE NOT NULL,
-    UNIQUE INDEX `AnalyticsSnapshot_organizationId_platform_externalId_metric_date_key`(`organizationId`, `platform`, `externalId`, `metric`, `date`),
+    UNIQUE INDEX `AnalyticsSnapshot_org_platform_metric_date_key`(`organizationId`, `platform`, `externalId`, `metric`, `date`),
     INDEX `AnalyticsSnapshot_organizationId_date_idx`(`organizationId`, `date`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
