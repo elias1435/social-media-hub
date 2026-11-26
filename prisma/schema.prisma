@@ -235,7 +235,7 @@ model MessengerThread {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   assignedTo User? @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
   notes MessengerNote[]
-  @@unique([organizationId, socialAccountId, conversationId])
+  @@unique([organizationId, socialAccountId, conversationId], map: "MessengerThread_org_account_conv_unique")
   @@index([organizationId, assignedToId])
 }
 
@@ -278,7 +278,7 @@ model AnalyticsSnapshot {
   value Float
   date DateTime @db.Date
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  @@unique([organizationId, platform, externalId, metric, date])
+  @@unique([organizationId, platform, externalId, metric, date], map: "AnalyticsSnapshot_org_platform_metric_date_key")
   @@index([organizationId, date])
 }
 
