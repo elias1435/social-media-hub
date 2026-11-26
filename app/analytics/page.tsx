@@ -1,3 +1,4 @@
+import {preferredPage} from "@/lib/workspace-page";
 import PageNavigation from "@/components/facebook/PageNavigation";
 import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
@@ -9,13 +10,14 @@ import { hasOrgPermission } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
 type Info = { followers_count?: number; fan_count?: number };
 export default async function Analytics({searchParams}:{searchParams:Promise<{page?:string}>}) {
- const {page}=await searchParams;
+ const {page:requested}=await searchParams;
  const session=await auth();
+ const page=requested||await preferredPage(session?.user?.id,session?.user?.organizationId);
  const allowed=session?.user?.organizationId&&session.user.id?await hasOrgPermission(session.user.id,session.user.organizationId,"analytics.view"):false;
  if(!allowed)return <AppShell><PageHeader title="Analytics & Reports" description="Access restricted"/><p className="rounded-xl bg-white p-6">Your role cannot view analytics.</p></AppShell>;
  const pages=session?.user?.organizationId?await prisma.socialAccount.findMany({where:{organizationId:session.user.organizationId,platform:"FACEBOOK",status:"CONNECTED"}}):[];
  const records: {id:string;name:string;followers:number|null;likes:number|null;error:boolean}[]=[];
- for(const account of (page?pages.filter(p=>p.id===page):pages)){
+ await Promise.all((page?pages.filter(p=>p.id===page):pages).map(async account=>{
   const page=account;
   let followers:number|null=null, likes:number|null=null, error=false;
   try {
@@ -25,7 +27,7 @@ export default async function Analytics({searchParams}:{searchParams:Promise<{pa
    likes=typeof info.fan_count==="number"?info.fan_count:null;
   }catch{error=true;}
   records.push({id:page.id,name:page.name,followers,likes,error});
- }
+ }));
  const totalFollowers=records.reduce((sum,row)=>sum+(row.followers||0),0);
  const start=new Date(Date.now()-30*86400000);
  const [history,replies]=await Promise.all([
