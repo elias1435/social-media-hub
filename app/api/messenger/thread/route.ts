@@ -44,8 +44,10 @@ export async function POST(request:NextRequest){
   const member=await prisma.membership.findUnique({where:{organizationId_userId:{organizationId:login.org,userId:assignedToId}},include:{user:{select:{status:true}}}});
   if(!member||member.user.status!=="ACTIVE")return fail("Assignee is not an active workspace member",400);
  }
+ const existing=await prisma.messengerThread.findUnique({where:{organizationId_socialAccountId_conversationId:{organizationId:login.org,socialAccountId:accountId,conversationId}},select:{id:true}});
  const thread=await prisma.messengerThread.upsert({where:{organizationId_socialAccountId_conversationId:{organizationId:login.org,socialAccountId:accountId,conversationId}},create:{organizationId:login.org,socialAccountId:accountId,conversationId,assignedToId:assignedToId??null,leadStatus:leadStatus||"NEW",state:state||"OPEN",labels:labels||[]},update:{...(assignedToId!==undefined?{assignedToId}:{}),...(leadStatus!==undefined?{leadStatus}:{}),...(state!==undefined?{state}:{}),...(labels!==undefined?{labels}:{})}});
  if(note)await prisma.messengerNote.create({data:{threadId:thread.id,authorId:login.user,text:note}});
+ if(!existing&&!assignedToId){const options=await prisma.organizationSetting.findUnique({where:{organizationId:login.org}});if(options?.autoAssignInbox&&options?.enableAutomation){await prisma.automationJob.create({data:{organizationId:login.org,kind:"AUTO_ASSIGN_THREAD",payload:{threadId:thread.id},scheduledAt:new Date()}}).catch(()=>{});}}
  if(assignedToId&&assignedToId!==login.user&&body?.assignedToId!==undefined){
   await notifyWorkspaceUser({organizationId:login.org,userId:assignedToId,title:"Messenger conversation assigned",description:"A Facebook Page conversation was assigned to you.",href:"/facebook/messages?page="+encodeURIComponent(accountId)}).catch(()=>{});
  }
