@@ -1,5 +1,20 @@
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
-import { Panel, PanelHeader } from "@/components/ui/Panel";
-import StatusBadge from "@/components/ui/StatusBadge";
-export default function Settings(){return <AppShell><PageHeader title="Settings & API Status" description="General settings, notifications, backup and integration health."/><div className="grid gap-6 xl:grid-cols-[1fr_1fr]"><Panel><PanelHeader title="General Settings"/><div className="space-y-5 p-5"><label className="block"><span className="mb-2 block text-sm font-medium">Organization Name</span><input className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm" defaultValue="Ashik International"/></label><label className="block"><span className="mb-2 block text-sm font-medium">Time Zone</span><select className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm"><option>(GMT+06) Dhaka</option></select></label><label className="flex items-center justify-between rounded-lg border border-slate-200 p-4"><div><p className="text-sm font-medium">Auto Sync</p><p className="text-xs text-slate-500">Automatically sync account activity.</p></div><input type="checkbox" defaultChecked/></label><button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Save Settings</button></div></Panel><Panel><PanelHeader title="API Status"/><div className="divide-y divide-slate-100">{[["Facebook API","Connected","Jan 15, 2027"],["YouTube API","Connected","Mar 19, 2027"],["WhatsApp API","Connected","Feb 20, 2027"],["Ads API","Connected","Jan 30, 2027"]].map(r=><div key={r[0]} className="flex items-center justify-between gap-4 p-5"><div><p className="text-sm font-semibold">{r[0]}</p><p className="mt-1 text-xs text-slate-400">Valid until {r[2]}</p></div><StatusBadge>{r[1]}</StatusBadge></div>)}</div></Panel></div></AppShell>}
+import SettingsForm from "@/components/settings/SettingsForm";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+export const dynamic="force-dynamic";
+export default async function Settings(){
+ const session=await auth(),org=session?.user?.organizationId;
+ const [setting,accounts]=org?await Promise.all([
+  prisma.organizationSetting.findUnique({where:{organizationId:org}}),
+  prisma.socialAccount.findMany({where:{organizationId:org},select:{id:true,name:true,platform:true,status:true,tokenExpiresAt:true},orderBy:{name:"asc"}})
+ ]):[null,[]];
+ const initial={timezone:setting?.timezone||"Asia/Dhaka",notifyInApp:setting?.notifyInApp??true,notifyEmail:setting?.notifyEmail??false,autoAssignInbox:setting?.autoAssignInbox??false,enableAutomation:setting?.enableAutomation??false,defaultPublishMode:setting?.defaultPublishMode||"now"};
+ return <AppShell><PageHeader title="Settings & API Status" description="Saved organization preferences and real connected accounts."/>
+ <div className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]"><SettingsForm initial={initial} canEdit={Boolean(session?.user?.isSystemAdmin)}/>
+ <section className="rounded-xl border border-slate-200 bg-white p-6"><h2 className="text-lg font-bold">Connected accounts</h2><p className="mt-2 text-xs text-slate-500">Live connection records. A CONNECTED record does not guarantee Meta permission approval or token validity.</p>
+ <div className="mt-5 divide-y divide-slate-100">{accounts.length?accounts.map(a=><div key={a.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><div><p className="font-semibold">{a.name}</p><p className="mt-1 text-xs text-slate-500">{a.platform} {a.tokenExpiresAt?"· Token expiry: "+a.tokenExpiresAt.toLocaleDateString():"· Expiry not provided"}</p></div><span className={a.status==="CONNECTED"?"text-green-700":"text-amber-700"}>{a.status}</span></div>):<p className="py-4 text-sm text-slate-500">No connected social accounts.</p>}</div>
+ <p className="mt-4 text-xs text-slate-500">Ads authorization also requires its separate Marketing API credentials.</p>
+ </section></div></AppShell>;
+}
