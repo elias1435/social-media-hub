@@ -19,6 +19,7 @@ export default function PrivacyPolicyPage() {
         <ul>
           <li><strong>Workspace account details:</strong> your name, email address, membership, assigned role and related account settings.</li>
           <li><strong>Connected social accounts:</strong> Page or account identifiers, names, available profile and engagement information, connection status and access credentials needed for authorized API access.</li>
+          <li><strong>Team collaboration:</strong> internal Messenger conversation labels, lead stages, assignment information and staff-written notes are stored to support workspace collaboration. Message bodies retrieved from Meta are not copied into the application database.</li>
           <li><strong>Activity records:</strong> account connections, publishing and moderation actions, message-reply actions and associated timestamps or external identifiers.</li>
           <li><strong>Social content:</strong> posts, comments and Messenger conversations retrieved from connected providers for display and management. The current Messenger interface fetches conversation content from Meta rather than keeping copies of messages in our application database.</li>
           <li><strong>Drafts:</strong> certain text drafts are saved locally in your browser on the device where they were created.</li>
