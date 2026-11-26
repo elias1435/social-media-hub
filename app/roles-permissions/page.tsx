@@ -1,6 +1,16 @@
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
-import { Panel, PanelHeader } from "@/components/ui/Panel";
-const permissions=["View Messages","Reply Messages","View Comments","Reply Comments","Create Posts","Publish Posts","Upload Videos","Manage Ads","View Reports","Manage Users"];
-const roles: Array<[string, string[]]> = [["Super Admin", permissions], ["Manager", permissions.slice(0,9)], ["Customer Care", permissions.slice(0,4)], ["Content Team", permissions.slice(4,7)], ["Video Uploader", ["Upload Videos", "View Reports"]]];
-export default function Roles(){return <AppShell><PageHeader title="Roles & Permissions" description="Permission templates keep access secure and easy to manage." action={<button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">+ New Role</button>}/><div className="grid gap-5 xl:grid-cols-2">{roles.map(([role,perms])=><Panel key={role}><PanelHeader title={role} action={<button className="text-xs font-semibold text-blue-600">Edit</button>}/><div className="grid grid-cols-2 gap-3 p-5">{permissions.map(p=><label key={p} className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" defaultChecked={perms.includes(p)}/>{p}</label>)}</div></Panel>)}</div></AppShell>}
+import RolesManager from "@/components/users/RolesManager";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+export const dynamic="force-dynamic";
+export default async function Roles(){
+ const session=await auth();
+ if(!session?.user?.isSystemAdmin||!session.user.organizationId)return <AppShell><PageHeader title="Roles & Permissions" description="Access restricted"/><div className="rounded-xl border border-amber-200 bg-white p-6 text-sm text-amber-900">Only system administrators can manage organization roles.</div></AppShell>;
+ const [roles,permissions]=await Promise.all([
+  prisma.role.findMany({where:{organizationId:session.user.organizationId},include:{permissions:{select:{permission:{select:{key:true}}}}},orderBy:{name:"asc"}}),
+  prisma.permission.findMany({orderBy:{name:"asc"},select:{id:true,key:true,name:true}})
+ ]);
+ return <AppShell><PageHeader title="Roles & Permissions" description="Manage real organization roles and feature visibility. Changes apply when users refresh their session."/>
+ <RolesManager roles={roles.map(r=>({id:r.id,key:r.key,name:r.name,description:r.description||"",permissions:r.permissions.map(p=>p.permission.key)}))} permissions={permissions}/></AppShell>;
+}

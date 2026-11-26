@@ -66,7 +66,7 @@ export async function POST(request:NextRequest) {
   if(!await hasOrgPermission(userId,org,"facebook.posts.publish"))return fail("Your role cannot publish Facebook videos.",403);
 
   const contentType=request.headers.get("content-type")||"";
-  let payload: {action?:string;accountId?:string;fileSize?:number;description?:string;sessionToken?:string;startOffset?:number};
+  let payload: {action?:string;accountId?:string;fileSize?:number;description?:string;mode?:string;scheduleAt?:string;sessionToken?:string;startOffset?:number};
   let chunk:File|null=null;
   if(contentType.includes("multipart/form-data")){
     const length=Number(request.headers.get("content-length")||0);
@@ -119,16 +119,26 @@ export async function POST(request:NextRequest) {
 
     const description=typeof payload.description==="string"?payload.description.trim():"";
     if(description.length>5000)return fail("Description is too long.");
-    const result=await metaPost(account.externalAccountId,pageToken,new URLSearchParams({
-      upload_phase:"finish",upload_session_id:value.uploadId,description,published:"true"
-    }));
+    const mode=payload.mode==="schedule"?"schedule":"now";
+    if(payload.mode && !["now","schedule"].includes(payload.mode))return fail("Invalid video publishing mode.");
+    let scheduledAt:string|null=null;
+    const params=new URLSearchParams({upload_phase:"finish",upload_session_id:value.uploadId,description,published:mode==="schedule"?"false":"true"});
+    if(mode==="schedule"){
+      const when=new Date(typeof payload.scheduleAt==="string"?payload.scheduleAt:"");
+      const unix=Math.floor(when.getTime()/1000);
+      const now=Math.floor(Date.now()/1000);
+      if(!Number.isFinite(unix)||unix<now+11*60||unix>now+29*86400)return fail("Choose a scheduled time between 11 minutes and 29 days from now.");
+      params.set("scheduled_publish_time",String(unix));
+      scheduledAt=when.toISOString();
+    }
+    const result=await metaPost(account.externalAccountId,pageToken,params);
     if(result.success!==true&&!(result.id||result.video_id))throw new Error("Meta has not confirmed video publication.");
     await prisma.activityLog.create({data:{
-      organizationId:org,actorUserId:userId,action:"FACEBOOK_VIDEO_UPLOADED",
+      organizationId:org,actorUserId:userId,action:mode==="schedule"?"FACEBOOK_POST_SCHEDULED":"FACEBOOK_VIDEO_UPLOADED",
       entityType:"SocialAccount",entityId:account.id,
-      details:{videoId:value.videoId,fileSize:value.total,uploadMethod:"CHUNKED"}
+      details:{videoId:value.videoId,fileSize:value.total,uploadMethod:"CHUNKED",mediaType:"video",mode,scheduledAt}
     }}).catch(error=>console.error("Video activity log failure",error));
-    return NextResponse.json({ok:true,videoId:value.videoId,note:"Meta accepted the video. Processing and publishing may still be underway."});
+    return NextResponse.json({ok:true,videoId:value.videoId,scheduled:mode==="schedule",note:mode==="schedule"?"Meta accepted the scheduled video. Processing may still be underway.":"Meta accepted the video. Processing and publishing may still be underway."});
   }catch(error){
     const message=error instanceof Error?error.message:"Meta video upload failed.";
     console.error("Facebook video upload step failed:",message);
