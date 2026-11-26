@@ -55,7 +55,7 @@ function isActive(pathname: string, href: string) {
 export default function Sidebar({permissions,systemAdmin}:{permissions:string[];systemAdmin:boolean}) {
   const pathname = usePathname();
   const [mobileOpen,setMobileOpen]=useState(false);
-  const allowed=(href:string)=>systemAdmin||permissions.includes(permissionByRoute[href]||"__unavailable__");
+  const allowed=(href:string)=>systemAdmin||(href!=="/team"&&href!=="/roles-permissions"&&permissions.includes(permissionByRoute[href]||"__unavailable__"));
   const visibleMenu=menuItems.filter(item=>allowed(item.href));
   const visibleBottom=bottomItems.filter(item=>allowed(item.href));
 
