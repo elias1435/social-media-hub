@@ -2,11 +2,13 @@ import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/auth";
 import {prisma} from "@/lib/prisma";
 import {graphGet} from "@/lib/meta-connection";
+import {hasOrgPermission} from "@/lib/permissions";
 const fail=(error:string,status=400)=>NextResponse.json({error},{status});
 type Account={id:string;account_id?:string};type Campaign={id:string;account_id?:string};
 export async function POST(request:NextRequest){
  const session=await auth();
  if(!session?.user?.isSystemAdmin||!session.user.organizationId)return fail("Ads management restricted to system administrators.",403);
+ if(!await hasOrgPermission(session.user.id,session.user.organizationId,"ads.manage"))return fail("Your role does not grant Ads management.",403);
  if(process.env.META_ADS_LIVE_CHANGES_ENABLED!=="true")return fail("Live Ads changes are disabled by the server administrator.",403);
  const token=process.env.META_ADS_ACCESS_TOKEN;
  if(!token)return fail("Meta Ads access is not configured.",503);
