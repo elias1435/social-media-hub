@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-import CreateUserForm from "@/components/users/CreateUserForm";
+import InviteUserForm from "@/components/users/InviteUserForm";
 import AppShell from "@/components/layout/AppShell";
 
 export default async function TeamPage() {
@@ -75,10 +75,7 @@ export default async function TeamPage() {
         </p>
       </div>
 
-      <CreateUserForm
-        roles={roles}
-        organizations={organizations}
-      />
+      <InviteUserForm roles={roles} />
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-4">
