@@ -42,6 +42,7 @@ async function processJob(job:{id:string;kind:string;organizationId:string;paylo
 }
 export async function POST(request:NextRequest){
  if(!validSecret(request))return NextResponse.json({error:"Unauthorized"},{status:401});
+ await prisma.automationJob.updateMany({where:{status:"RUNNING",lockedUntil:{lt:new Date()}},data:{status:"NEEDS_REVIEW",lockedUntil:null,lastError:"Worker interrupted; inspect before retrying to avoid duplicate external actions."}});
  const due=await prisma.automationJob.findMany({where:{status:"PENDING",scheduledAt:{lte:new Date()}},orderBy:{scheduledAt:"asc"},take:10,select:{id:true,organizationId:true,kind:true,payload:true}});
  let done=0,review=0;
  for(const job of due){
