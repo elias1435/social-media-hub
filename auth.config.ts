@@ -11,7 +11,7 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user;
       const isLoginPage = nextUrl.pathname.startsWith("/login");
       // Meta App Review policies and deletion instructions must be publicly accessible.
-      const publicPages = ["/privacy-policy", "/terms-of-service", "/data-deletion", "/api/version"];
+      const publicPages = ["/privacy-policy", "/terms-of-service", "/data-deletion", "/api/version","/accept-invite","/api/invitations/accept","/api/automation/run","/api/analytics/collect","/api/health"];
       if (publicPages.some(path => nextUrl.pathname === path || nextUrl.pathname === path + "/")) return true;
 
       if (isLoginPage) {

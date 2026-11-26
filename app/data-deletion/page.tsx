@@ -15,6 +15,7 @@ export default function DataDeletionPage() {
           <li>Your workspace account information (name, email and role).</li>
           <li>Connected Facebook Page details (Page ID and name) and saved access tokens, encrypted at rest using AES-256-GCM.</li>
           <li>Activity logs of actions performed in the workspace (for example, connecting a Page or sending a message).</li>
+          <li>Internal Messenger collaboration information such as assigned staff, lead status, labels and team notes.</li>
         </ul>
         <p>Messenger conversations, comments and posts are fetched from Meta when you view them. We do not store the contents of those Messenger conversations in our application database.</p>
       </section>

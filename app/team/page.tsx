@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-import CreateUserForm from "@/components/users/CreateUserForm";
+import InviteUserForm from "@/components/users/InviteUserForm";
+import UserAccessControls from "@/components/users/UserAccessControls";
 import AppShell from "@/components/layout/AppShell";
 
 export default async function TeamPage() {
@@ -26,6 +27,7 @@ export default async function TeamPage() {
   const [roles, organizations, users] =
     await Promise.all([
       prisma.role.findMany({
+        where: { organizationId: session.user.organizationId },
         orderBy: {
           name: "asc",
         },
@@ -37,6 +39,7 @@ export default async function TeamPage() {
       }),
 
       prisma.organization.findMany({
+        where: { id: session.user.organizationId },
         orderBy: {
           name: "asc",
         },
@@ -48,6 +51,7 @@ export default async function TeamPage() {
       }),
 
       prisma.user.findMany({
+        where: { memberships: { some: { organizationId: session.user.organizationId } } },
         orderBy: {
           createdAt: "desc",
         },
@@ -75,10 +79,7 @@ export default async function TeamPage() {
         </p>
       </div>
 
-      <CreateUserForm
-        roles={roles}
-        organizations={organizations}
-      />
+      <InviteUserForm roles={roles} />
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-4">
@@ -97,7 +98,7 @@ export default async function TeamPage() {
                   Organization
                 </th>
                 <th className="px-6 py-3">Role</th>
-                <th className="px-6 py-3">Status</th>
+                <th className="px-6 py-3">Status</th><th className="px-6 py-3">Access</th>
               </tr>
             </thead>
 
@@ -133,6 +134,7 @@ export default async function TeamPage() {
                         {user.status}
                       </span>
                     </td>
+                    <td className="px-6 py-4"><UserAccessControls id={user.id} roleId={membership?.roleId||""} status={user.status} roles={roles} isSelf={user.id===session.user.id}/></td>
                   </tr>
                 );
               })}

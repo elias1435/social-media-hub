@@ -51,6 +51,13 @@ model Organization {
   roles         Role[]
   socialAccounts SocialAccount[]
   activityLogs  ActivityLog[]
+  settings      OrganizationSetting?
+  invitations   UserInvitation[]
+  notifications Notification[]
+  threads       MessengerThread[]
+  jobs          AutomationJob[]
+  analytics     AnalyticsSnapshot[]
+  adActions     AdActionRequest[]
 }
 
 model User {
@@ -65,6 +72,10 @@ model User {
 
   memberships Membership[]
   activityLogs ActivityLog[]
+  invitationsSent UserInvitation[] @relation("InvitationSender")
+  notifications Notification[]
+  assignedThreads MessengerThread[]
+  threadNotes MessengerNote[]
 }
 
 model Membership {
@@ -166,4 +177,123 @@ model ActivityLog {
 
   @@index([organizationId, createdAt])
   @@index([actorUserId])
+}
+model OrganizationSetting {
+  organizationId String @id
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  timezone String @default("Asia/Dhaka")
+  notifyInApp Boolean @default(true)
+  notifyEmail Boolean @default(false)
+  autoAssignInbox Boolean @default(false)
+  enableAutomation Boolean @default(false)
+  defaultPublishMode String @default("now")
+  updatedAt DateTime @updatedAt
+}
+
+model UserInvitation {
+  id String @id @default(cuid())
+  organizationId String
+  email String
+  name String
+  roleId String
+  invitedById String
+  tokenHash String @unique
+  expiresAt DateTime
+  acceptedAt DateTime?
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy User @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Cascade)
+  @@index([organizationId, email])
+  @@index([expiresAt])
+}
+
+model Notification {
+  id String @id @default(cuid())
+  organizationId String
+  userId String
+  title String
+  description String? @db.Text
+  href String?
+  readAt DateTime?
+  emailedAt DateTime?
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([organizationId, userId, createdAt])
+}
+
+model MessengerThread {
+  id String @id @default(cuid())
+  organizationId String
+  socialAccountId String
+  conversationId String
+  assignedToId String?
+  leadStatus String @default("NEW")
+  state String @default("OPEN")
+  labels Json?
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTo User? @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  notes MessengerNote[]
+  @@unique([organizationId, socialAccountId, conversationId], map: "MessengerThread_org_account_conv_unique")
+  @@index([organizationId, assignedToId])
+}
+
+model MessengerNote {
+  id String @id @default(cuid())
+  threadId String
+  authorId String
+  text String @db.Text
+  createdAt DateTime @default(now())
+  thread MessengerThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  @@index([threadId, createdAt])
+}
+
+model AutomationJob {
+  id String @id @default(cuid())
+  organizationId String
+  kind String
+  status String @default("PENDING")
+  payload Json
+  scheduledAt DateTime
+  attempts Int @default(0)
+  maxAttempts Int @default(3)
+  lockedUntil DateTime?
+  lastError String? @db.Text
+  completedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([status, scheduledAt])
+  @@index([organizationId, createdAt])
+}
+
+model AnalyticsSnapshot {
+  id String @id @default(cuid())
+  organizationId String
+  platform SocialPlatform
+  externalId String
+  metric String
+  value Float
+  date DateTime @db.Date
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, platform, externalId, metric, date], map: "AnalyticsSnapshot_org_platform_metric_date_key")
+  @@index([organizationId, date])
+}
+
+model AdActionRequest {
+  id String @id @default(cuid())
+  organizationId String
+  actorId String
+  adAccountId String
+  action String
+  payload Json
+  status String @default("DRAFT")
+  externalId String?
+  error String? @db.Text
+  createdAt DateTime @default(now())
+  executedAt DateTime?
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId, createdAt])
 }

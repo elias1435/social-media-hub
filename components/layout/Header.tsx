@@ -7,7 +7,8 @@ import { signOut } from "next-auth/react";
 import { menuItems, permissionByRoute } from "@/components/layout/Sidebar";
 
 type Activity = {id:string;action:string;createdAt:string};
-type Props = {permissions:string[];systemAdmin:boolean;userName:string;roleName:string;activity:Activity[]};
+type Notification = {id:string;title:string;description:string|null;href:string|null;readAt:string|null;createdAt:string};
+type Props = {permissions:string[];systemAdmin:boolean;userName:string;roleName:string;activity:Activity[];notifications:Notification[]};
 
 const extraRoutes=[
  {label:"Create Facebook Post",href:"/facebook/create-post",permission:"facebook.posts.create"},
@@ -19,13 +20,15 @@ const extraRoutes=[
  {label:"Settings",href:"/settings",permission:"settings.view"},
 ];
 
-export default function Header({permissions,systemAdmin,userName,roleName,activity}:Props){
+export default function Header({permissions,systemAdmin,userName,roleName,activity,notifications}:Props){
  const router=useRouter(); const pathname=usePathname();
  const [search,setSearch]=useState("");
  const [open,setOpen]=useState<"search"|"notifications"|"help"|"profile"|"date"|null>(null);
  const [start,setStart]=useState("");
  const [end,setEnd]=useState("");
- const [seen,setSeen]=useState(false);
+ const [inboxNotices,setInboxNotices]=useState(notifications);
+ const unread=inboxNotices.filter(n=>!n.readAt).length;
+ async function markRead(id:string){const res=await fetch("/api/notifications",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});if(res.ok)setInboxNotices(old=>old.map(n=>n.id===id?{...n,readAt:new Date().toISOString()}:n));}
  const routes=useMemo(()=>[...menuItems.map(item=>({label:item.label,href:item.href,permission:permissionByRoute[item.href]})),...extraRoutes].filter(item=>permissions.includes(item.permission||"__not_allowed__")&&(systemAdmin||!["/team","/roles-permissions"].includes(item.href))), [permissions,systemAdmin]);
  const matching=useMemo(()=>routes.filter(item=>item.label.toLowerCase().includes(search.trim().toLowerCase())).slice(0,8),[routes,search]);
  useEffect(()=>{setOpen(null)},[pathname]);
@@ -39,8 +42,8 @@ export default function Header({permissions,systemAdmin,userName,roleName,activi
   </form>
   <div className="ml-auto flex items-center gap-1 sm:gap-2">
    <div className="relative">
-    <button type="button" aria-label="Notifications" aria-expanded={open==="notifications"} onClick={()=>{setOpen(open==="notifications"?null:"notifications");setSeen(true)}} className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100"><Bell size={20}/>{!seen&&activity.length>0&&<span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500"/>}</button>
-    {open==="notifications"&&<div className={popClass}><h2 className="mb-3 font-semibold">Recent workspace activity</h2><p className="mb-3 text-xs text-slate-500">Recorded activity, not real-time push notifications.</p>{activity.length?<div className="max-h-72 space-y-3 overflow-auto">{activity.map(a=><div key={a.id} className="border-b border-slate-100 pb-2"><p className="text-xs font-medium text-slate-700">{a.action.replaceAll("_"," ")}</p><p className="mt-1 text-xs text-slate-400">{new Date(a.createdAt).toLocaleString()}</p></div>)}</div>:<p className="text-slate-500">No recent activity.</p>}{permissions.includes("activity_logs.view")&&<Link className="mt-3 block font-semibold text-blue-600" href="/activity-logs">View activity log</Link>}</div>}
+    <button type="button" aria-label="Notifications" aria-expanded={open==="notifications"} onClick={()=>setOpen(open==="notifications"?null:"notifications")} className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100"><Bell size={20}/>{unread>0&&<span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500"/>}</button>
+    {open==="notifications"&&<div className={popClass}><h2 className="mb-3 font-semibold">Notifications {unread>0&&<span className="ml-2 rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-700">{unread} unread</span>}</h2>{inboxNotices.length?<div className="max-h-72 space-y-3 overflow-auto">{inboxNotices.map(n=><div key={n.id} className={`border-b border-slate-100 pb-2 ${n.readAt?"opacity-70":""}`}><p className="text-xs font-semibold">{n.title}</p>{n.description&&<p className="mt-1 text-xs text-slate-500">{n.description}</p>}<p className="mt-1 text-[10px] text-slate-400">{new Date(n.createdAt).toLocaleString()}</p><div className="mt-2 flex gap-3">{!n.readAt&&<button type="button" onClick={()=>void markRead(n.id)} className="font-semibold text-blue-700">Mark read</button>}{n.href&&<Link href={n.href} className="font-semibold text-blue-700">Open</Link>}</div></div>)}</div>:<p className="text-slate-500">No notifications yet.</p>}{permissions.includes("activity_logs.view")&&<Link className="mt-3 block font-semibold text-blue-600" href="/activity-logs">View activity log</Link>}</div>}
    </div>
    <div className="relative">
     <button type="button" aria-label="Help and information" aria-expanded={open==="help"} onClick={()=>setOpen(open==="help"?null:"help")} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><CircleHelp size={20}/></button>
