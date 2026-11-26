@@ -27,9 +27,9 @@ export default async function Ads({searchParams}:{searchParams:Promise<{account?
  const chosen=accounts.find(a=>a.id===account)||accounts[0];
  if(token&&chosen){
   try{
-   const data=await graphGet<{data?:Campaign[]}>("/"+chosen.id+"/"+level,token,{fields:level==="campaigns"?"id,name,objective,effective_status":level==="adsets"?"id,name,optimization_goal,effective_status":"id,name,effective_status",limit:"100"});campaigns=data.data||[];
-   const report=await graphGet<{data?:Insight[]}>("/"+chosen.id+"/insights",token,{fields:idField+",spend,impressions,reach,clicks",level:insightLevel,date_preset:"last_30d",limit:"100"});
-   insights=report.data||[];
+   const [data,report]=await Promise.all([graphGet<{data?:Campaign[]}>("/"+chosen.id+"/"+level,token,{fields:level==="campaigns"?"id,name,objective,effective_status":level==="adsets"?"id,name,optimization_goal,effective_status":"id,name,effective_status",limit:"100"}),
+   graphGet<{data?:Insight[]}>("/"+chosen.id+"/insights",token,{fields:idField+",spend,impressions,reach,clicks",level:insightLevel,date_preset:"last_30d",limit:"100"})]);
+   campaigns=data.data||[];insights=report.data||[];
   }catch(e){error="Meta could not retrieve records or insights. Check the selected account permissions and try again.";}
  }
  return <AppShell><PageHeader title="Meta Ads Manager" description="Live Meta Marketing API reporting with administrator-confirmed campaign controls."/>
