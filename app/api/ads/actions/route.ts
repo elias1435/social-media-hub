@@ -34,7 +34,7 @@ export async function POST(request:NextRequest){
  try{
   await prisma.adActionRequest.create({data:{id:requestId,organizationId:session.user.organizationId,actorId:session.user.id,adAccountId:accountId,action,payload,status:"PROCESSING",externalId:campaignId}});
  }catch{return fail("Duplicate or invalid action request",409);}
- const form=new URLSearchParams(payload);
+ const form=action==="DAILY_BUDGET"?new URLSearchParams({daily_budget:String(budget)}):new URLSearchParams({status:action==="PAUSE"?"PAUSED":"ACTIVE"});
  try{
   const response=await fetch("https://graph.facebook.com/v26.0/"+encodeURIComponent(campaignId),{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/x-www-form-urlencoded"},body:form,cache:"no-store"});
   const result=await response.json().catch(()=>({}));
