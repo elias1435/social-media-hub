@@ -32,6 +32,22 @@ async function runInstagram(org:string,raw:unknown){
  await prisma.activityLog.create({data:{organizationId:org,actorUserId:p.actorUserId,action:"INSTAGRAM_IMAGE_PUBLISHED",entityType:"SocialAccount",entityId:page.id,details:{instagramId:p.igId,mediaId:result.id,source:"AUTOMATION"}}});
 }
 async function processJob(job:{id:string;kind:string;organizationId:string;payload:unknown}){
+ if(job.kind==="AUTO_ASSIGN_THREAD"){
+  const threadId=(job.payload as {threadId?:string}|null)?.threadId;
+  if(!threadId)throw new Error("Invalid assignment job");
+  const thread=await prisma.messengerThread.findFirst({where:{id:threadId,organizationId:job.organizationId}});
+  if(!thread||thread.assignedToId||thread.state!=="OPEN")return;
+  const members=await prisma.membership.findMany({where:{organizationId:job.organizationId,user:{status:"ACTIVE"},role:{permissions:{some:{permission:{key:"facebook.messages.reply"}}}}},select:{userId:true}});
+  if(!members.length)throw new Error("No team member has Messenger reply permission");
+  let assignee=members[0].userId,least=Number.MAX_SAFE_INTEGER;
+  for(const member of members){
+   const count=await prisma.messengerThread.count({where:{organizationId:job.organizationId,assignedToId:member.userId,state:"OPEN"}});
+   if(count<least){least=count;assignee=member.userId;}
+  }
+  const changed=await prisma.messengerThread.updateMany({where:{id:thread.id,organizationId:job.organizationId,assignedToId:null},data:{assignedToId:assignee}});
+  if(changed.count)await notifyWorkspaceUser({organizationId:job.organizationId,userId:assignee,title:"New Messenger assignment",description:"A Facebook conversation was automatically assigned to you.",href:"/facebook/messages?page="+encodeURIComponent(thread.socialAccountId)});
+  return;
+ }
  if(job.kind==="INSTAGRAM_PHOTO"){await runInstagram(job.organizationId,job.payload);return;}
  if(job.kind==="NOTIFY"){
   const p=job.payload as {userId:string;title:string;description?:string;href?:string};
