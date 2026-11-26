@@ -23,7 +23,7 @@ export default async function Planner({searchParams}:{searchParams:Promise<{page
  const selected=requested&&pages.some(p=>p.id===requested)?requested:null;
  const history=await prisma.activityLog.findMany({where:{organizationId:org!,action:{in:["FACEBOOK_POST_SCHEDULED","FACEBOOK_POST_PUBLISHED","FACEBOOK_REEL_PUBLISHED","FACEBOOK_VIDEO_UPLOADED","INSTAGRAM_IMAGE_PUBLISHED","INSTAGRAM_PHOTO_SCHEDULED"]}},orderBy:{createdAt:"desc"},take:100,select:{id:true,action:true,entityId:true,details:true,createdAt:true}});
  const queued=await prisma.automationJob.findMany({where:{organizationId:org!,kind:"INSTAGRAM_PHOTO"},orderBy:{scheduledAt:"desc"},take:100,select:{id:true,status:true,scheduledAt:true,payload:true}});
- const events:Array<{id:string;title:string;at:string;platform:"FACEBOOK"|"INSTAGRAM";status:string;jobId?:string}>=[];
+ const events:Array<{id:string;title:string;at:string;platform:"FACEBOOK"|"INSTAGRAM";status:string;jobId?:string;accountId?:string}>=[];
  const apiWarnings:string[]=[];
  await Promise.all(pages.filter(p=>!selected||p.id===selected).slice(0,12).map(async account=>{
   if(!account.accessTokenCiphertext)return;
@@ -33,7 +33,7 @@ export default async function Planner({searchParams}:{searchParams:Promise<{page
     const raw=post.scheduled_publish_time;
     const at=typeof raw==="number"||/^\d+$/.test(String(raw||""))?new Date(Number(raw)*1000):new Date(raw||"");
     if(Number.isNaN(at.getTime()))continue;
-    events.push({id:post.id,title:account.name+": "+(post.message?.slice(0,50)||"Scheduled Facebook post"),at:at.toISOString(),platform:"FACEBOOK",status:"Scheduled on Meta"});
+    events.push({id:post.id,title:account.name+": "+(post.message?.slice(0,50)||"Scheduled Facebook post"),at:at.toISOString(),platform:"FACEBOOK",status:"Scheduled on Meta",accountId:account.id});
    }
   }catch{apiWarnings.push("Unable to load scheduled posts from "+account.name);}
  }));
@@ -50,7 +50,7 @@ export default async function Planner({searchParams}:{searchParams:Promise<{page
   {apiWarnings.length>0&&<p className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{apiWarnings.join(" · ")}</p>}
   <PublishingCalendar events={events}/>
   <div className="mt-6"><JobList/></div>
-  <section className="mt-6 rounded-xl border border-slate-200 bg-white"><div className="border-b border-slate-100 p-5"><h2 className="font-semibold">Publishing history</h2><p className="mt-1 text-xs text-slate-500">Recorded actions from this portal. Historical entries are audit records, not guaranteed current Meta post statuses. Meta-managed scheduled posts can be changed in Meta Business Suite.</p></div>
+  <section className="mt-6 rounded-xl border border-slate-200 bg-white"><div className="border-b border-slate-100 p-5"><h2 className="font-semibold">Publishing history</h2><p className="mt-1 text-xs text-slate-500">Recorded actions from this portal. Historical entries are audit records, not guaranteed current Meta post statuses. Use the calendar or upcoming list to delete eligible scheduled Facebook items.</p></div>
   {history.length?<div className="divide-y divide-slate-100">{history.filter(h=>!selected||h.entityId===selected).map(h=>{const d=h.details as LogDetails|null;return <div key={h.id} className="flex flex-wrap justify-between gap-3 p-4 text-sm"><div><p className="font-semibold">{nameById.get(h.entityId||"")||h.action.replaceAll("_"," ")}</p><p className="mt-1 text-xs text-slate-500">{d?.mediaType||"Post"} · {h.action.replaceAll("_"," ")} · {h.createdAt.toLocaleString()}</p>{d?.scheduledAt&&<p className="mt-1 text-xs text-blue-700">Scheduled for {new Date(d.scheduledAt).toLocaleString()}</p>}</div><span className="text-xs text-slate-500">Audit log</span></div>})}</div>:<p className="p-6 text-sm text-slate-500">No recorded publishing activity.</p>}</section>
  </AppShell>;
 }
