@@ -10,7 +10,7 @@ export async function POST(request:NextRequest){
  if(!/^[\w-]{32,200}$/.test(token)||password.length<12||password.length>128)return fail("Invalid or expired invitation, or password is too short.");
  const tokenHash=createHash("sha256").update(token).digest("hex");
  const invite=await prisma.userInvitation.findUnique({where:{tokenHash}});
- if(!invite||invite.acceptedAt||invite.expiresAt<Date.now())return fail("Invitation expired or already used.",410);
+ if(!invite||invite.acceptedAt||invite.expiresAt.getTime()<Date.now())return fail("Invitation expired or already used.",410);
  const hash=await bcrypt.hash(password,12);
  try{
   await prisma.$transaction(async tx=>{
