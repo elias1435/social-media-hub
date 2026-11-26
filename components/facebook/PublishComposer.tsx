@@ -8,11 +8,11 @@ import { CalendarDays, ImagePlus, Save, Send, ShieldCheck, Trash2 } from "lucide
 type Page = { id: string; name: string };
 type LocalDraft = { pageId: string; message: string; savedAt: string };
 const DRAFT_KEY = "social-hub-facebook-draft-v1";
-export default function PublishComposer({ pages, selected }: { pages: Page[]; selected?: string }) {
+export default function PublishComposer({ pages, selected, scheduleDate }: { pages: Page[]; selected?: string; scheduleDate?:string }) {
  const [pageId,setPageId]=useState(selected && pages.some(p=>p.id===selected)?selected:(pages[0]?.id||""));
  const [message,setMessage]=useState("");
- const [mode,setMode]=useState<"now"|"schedule">("now");
- const [scheduleAt,setScheduleAt]=useState("");
+ const [mode,setMode]=useState<"now"|"schedule">(scheduleDate?"schedule":"now");
+ const [scheduleAt,setScheduleAt]=useState(scheduleDate?scheduleDate+"T12:00":"");
  const [image,setImage]=useState<File|null>(null);
  const [sending,setSending]=useState(false);
  const [draft,setDraft]=useState<LocalDraft|null>(null);
@@ -56,7 +56,7 @@ export default function PublishComposer({ pages, selected }: { pages: Page[]; se
    if(!res.ok)throw new Error(data.error||"Meta rejected the post");
    toast.success(data.scheduled?"Post scheduled on Facebook":"Post published on Facebook");
    setMessage("");setImage(null);
-   router.push("/facebook/posts?page="+encodeURIComponent(pageId));router.refresh();
+   router.push(scheduleDate?"/content-planner?page="+encodeURIComponent(pageId):"/facebook/posts?page="+encodeURIComponent(pageId));router.refresh();
   }catch(error){toast.error(error instanceof Error?error.message:"Publishing failed");}
   finally{setSending(false);}
  }

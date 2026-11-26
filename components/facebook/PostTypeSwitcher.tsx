@@ -5,7 +5,7 @@ import PublishComposer from "@/components/facebook/PublishComposer";
 import VideoUploader from "@/components/facebook/VideoUploader";
 import FacebookReelPublisher from "@/components/facebook/FacebookReelPublisher";
 type Page = { id:string;name:string };
-export default function PostTypeSwitcher({pages,selected}:{pages:Page[];selected?:string}) {
+export default function PostTypeSwitcher({pages,selected,scheduleDate}:{pages:Page[];selected?:string;scheduleDate?:string}) {
  const [type,setType]=useState<"post"|"video"|"reel">("post");
  return <div className="mx-auto max-w-5xl">
   <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -16,7 +16,7 @@ export default function PostTypeSwitcher({pages,selected}:{pages:Page[];selected
    </div>
    <p className="mt-3 text-xs text-slate-500">Both text and standard Facebook Page videos can be published now or scheduled. Image scheduling is not enabled; Reels use hosted video URLs.</p>
   </div>
-  <div hidden={type!=="post"}><PublishComposer pages={pages} selected={selected}/></div>
-  <div hidden={type!=="video"}><VideoUploader pages={pages} selected={selected}/></div><div hidden={type!=="reel"}><FacebookReelPublisher pages={pages} selected={selected}/></div>
+  <div hidden={type!=="post"}><PublishComposer pages={pages} selected={selected} scheduleDate={scheduleDate}/></div>
+  <div hidden={type!=="video"}><VideoUploader pages={pages} selected={selected} scheduleDate={scheduleDate}/></div><div hidden={type!=="reel"}><FacebookReelPublisher pages={pages} selected={selected} scheduleDate={scheduleDate}/></div>
  </div>;
 }

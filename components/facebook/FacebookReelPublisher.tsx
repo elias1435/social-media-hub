@@ -1,16 +1,18 @@
 "use client";
 import {FormEvent,useState} from "react";
 import {toast} from "sonner";
+import {useRouter} from "next/navigation";
 type Page={id:string;name:string};
-export default function FacebookReelPublisher({pages,selected}:{pages:Page[];selected?:string}){
+export default function FacebookReelPublisher({pages,selected,scheduleDate}:{pages:Page[];selected?:string;scheduleDate?:string}){
+ const router=useRouter();
  const [accountId,setAccountId]=useState(selected&&pages.some(p=>p.id===selected)?selected:pages[0]?.id||"");
  const [videoUrl,setVideoUrl]=useState(""),[description,setDescription]=useState("");
- const [mode,setMode]=useState<"now"|"schedule">("now"),[scheduleAt,setScheduleAt]=useState(""),[busy,setBusy]=useState(false);
+ const [mode,setMode]=useState<"now"|"schedule">(scheduleDate?"schedule":"now"),[scheduleAt,setScheduleAt]=useState(scheduleDate?scheduleDate+"T12:00":""),[busy,setBusy]=useState(false);
  async function submit(e:FormEvent){e.preventDefault();if(!accountId||!videoUrl||busy)return;
   if(!window.confirm(mode==="schedule"?"Schedule this Facebook Reel with Meta?":"Publish this Facebook Reel now?"))return;
   setBusy(true);try{
    const response=await fetch("/api/facebook/reels",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({accountId,videoUrl,description,mode,scheduleAt:mode==="schedule"?new Date(scheduleAt).toISOString():undefined})});
-   const data=await response.json();if(!response.ok)throw new Error(data.error||"Reel publishing failed");toast.success(data.note||"Reel submitted to Meta");setVideoUrl("");setDescription("");
+   const data=await response.json();if(!response.ok)throw new Error(data.error||"Reel publishing failed");toast.success(data.note||"Reel submitted to Meta");setVideoUrl("");setDescription("");if(scheduleDate){router.push("/content-planner?page="+encodeURIComponent(accountId));router.refresh();}
   }catch(e){toast.error(e instanceof Error?e.message:"Meta did not confirm the Reel");}finally{setBusy(false);}
  }
  return <form onSubmit={submit} className="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
