@@ -7,7 +7,7 @@ import { signOut } from "next-auth/react";
 import { menuItems, permissionByRoute } from "@/components/layout/Sidebar";
 
 type Activity = {id:string;action:string;createdAt:string};
-type Props = {permissions:string[];userName:string;roleName:string;activity:Activity[]};
+type Props = {permissions:string[];systemAdmin:boolean;userName:string;roleName:string;activity:Activity[]};
 
 const extraRoutes=[
  {label:"Create Facebook Post",href:"/facebook/create-post",permission:"facebook.posts.create"},
@@ -19,14 +19,14 @@ const extraRoutes=[
  {label:"Settings",href:"/settings",permission:"settings.view"},
 ];
 
-export default function Header({permissions,userName,roleName,activity}:Props){
+export default function Header({permissions,systemAdmin,userName,roleName,activity}:Props){
  const router=useRouter(); const pathname=usePathname();
  const [search,setSearch]=useState("");
  const [open,setOpen]=useState<"search"|"notifications"|"help"|"profile"|"date"|null>(null);
  const [start,setStart]=useState("");
  const [end,setEnd]=useState("");
  const [seen,setSeen]=useState(false);
- const routes=useMemo(()=>[...menuItems.map(item=>({label:item.label,href:item.href,permission:permissionByRoute[item.href]})),...extraRoutes].filter(item=>permissions.includes(item.permission||"__not_allowed__")), [permissions]);
+ const routes=useMemo(()=>[...menuItems.map(item=>({label:item.label,href:item.href,permission:permissionByRoute[item.href]})),...extraRoutes].filter(item=>permissions.includes(item.permission||"__not_allowed__")&&(systemAdmin||!["/team","/roles-permissions"].includes(item.href))), [permissions,systemAdmin]);
  const matching=useMemo(()=>routes.filter(item=>item.label.toLowerCase().includes(search.trim().toLowerCase())).slice(0,8),[routes,search]);
  useEffect(()=>{setOpen(null)},[pathname]);
  async function logout(){await signOut({redirect:false});window.location.href="/login";}
