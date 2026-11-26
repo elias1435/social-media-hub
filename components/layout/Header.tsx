@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, Bell, CircleHelp, ChevronDown, CalendarDays, LogOut, ArrowLeft, X, Menu } from "lucide-react";
+import { Search, Bell, CircleHelp, ChevronDown, CalendarDays, LogOut, ArrowLeft } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { menuItems, permissionByRoute } from "@/components/layout/Sidebar";
 
@@ -40,16 +40,16 @@ export default function Header({permissions,systemAdmin,userName,roleName,activi
   <div className="ml-auto flex items-center gap-1 sm:gap-2">
    <div className="relative">
     <button type="button" aria-label="Notifications" aria-expanded={open==="notifications"} onClick={()=>{setOpen(open==="notifications"?null:"notifications");setSeen(true)}} className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100"><Bell size={20}/>{!seen&&activity.length>0&&<span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500"/>}</button>
-    {open==="notifications"&&<div className={popClass}><h2 className="mb-3 font-semibold">Recent workspace activity</h2>{activity.length?<div className="max-h-72 space-y-3 overflow-auto">{activity.map(a=><div key={a.id} className="border-b border-slate-100 pb-2"><p className="text-xs font-medium text-slate-700">{a.action.replaceAll("_"," ")}</p><p className="mt-1 text-xs text-slate-400">{new Date(a.createdAt).toLocaleString()}</p></div>)}</div>:<p className="text-slate-500">No recent activity.</p>}{permissions.includes("activity_logs.view")&&<Link className="mt-3 block font-semibold text-blue-600" href="/activity-logs">View activity log</Link>}</div>}
+    {open==="notifications"&&<div className={popClass}><h2 className="mb-3 font-semibold">Recent workspace activity</h2><p className="mb-3 text-xs text-slate-500">Recorded activity, not real-time push notifications.</p>{activity.length?<div className="max-h-72 space-y-3 overflow-auto">{activity.map(a=><div key={a.id} className="border-b border-slate-100 pb-2"><p className="text-xs font-medium text-slate-700">{a.action.replaceAll("_"," ")}</p><p className="mt-1 text-xs text-slate-400">{new Date(a.createdAt).toLocaleString()}</p></div>)}</div>:<p className="text-slate-500">No recent activity.</p>}{permissions.includes("activity_logs.view")&&<Link className="mt-3 block font-semibold text-blue-600" href="/activity-logs">View activity log</Link>}</div>}
    </div>
    <div className="relative">
     <button type="button" aria-label="Help and information" aria-expanded={open==="help"} onClick={()=>setOpen(open==="help"?null:"help")} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><CircleHelp size={20}/></button>
     {open==="help"&&<div className={popClass}><h2 className="font-semibold">Help & information</h2><p className="mt-2 text-slate-500">Use Search to find features you have permission to access. Facebook actions require a connected Page and Meta approval.</p><Link href="/data-deletion" className="mt-3 block font-medium text-blue-600">Data deletion information</Link><Link href="/privacy-policy" className="mt-2 block font-medium text-blue-600">Privacy policy</Link></div>}
    </div>
-   <div className="relative">
+   {(systemAdmin||permissions.includes("activity_logs.view"))&&<div className="relative">
     <button type="button" aria-label="Date range filter" aria-expanded={open==="date"} onClick={()=>setOpen(open==="date"?null:"date")} className="flex items-center gap-2 rounded-lg border border-slate-200 p-2 text-xs text-slate-600 hover:bg-slate-50"><CalendarDays size={18}/><span className="hidden xl:inline">Date range</span></button>
     {open==="date"&&<form onSubmit={e=>{e.preventDefault();if(start&&end&&start>end)return;router.push("/activity-logs?from="+encodeURIComponent(start)+"&to="+encodeURIComponent(end));setOpen(null)}} className={popClass}><h2 className="mb-3 font-semibold">Filter activity logs</h2><label className="block">From<input type="date" required value={start} onChange={e=>setStart(e.target.value)} className="mt-1 w-full rounded border border-slate-200 p-2"/></label><label className="mt-3 block">To<input type="date" required value={end} onChange={e=>setEnd(e.target.value)} className="mt-1 w-full rounded border border-slate-200 p-2"/></label>{start&&end&&start>end&&<p role="alert" className="mt-2 text-red-600">End must be after start.</p>}<button disabled={!start||!end||start>end} className="mt-4 w-full rounded-lg bg-blue-600 px-3 py-2 text-white disabled:opacity-50">Apply to activity logs</button></form>}
-   </div>
+   </div>}
    <div className="relative">
     <button type="button" aria-label="User menu" aria-expanded={open==="profile"} onClick={()=>setOpen(open==="profile"?null:"profile")} className="flex items-center gap-2 rounded-lg p-1.5 text-left hover:bg-slate-100"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">{userName.trim().charAt(0).toUpperCase()||"U"}</span><span className="hidden max-w-32 sm:block"><span className="block truncate text-xs font-semibold text-slate-900">{userName}</span><span className="block truncate text-[11px] text-slate-500">{roleName}</span></span><ChevronDown size={15}/></button>
     {open==="profile"&&<div className={popClass}><p className="font-semibold">{userName}</p><p className="text-xs text-slate-500">{roleName}</p>{permissions.includes("settings.view")&&<Link href="/settings" className="mt-3 block rounded-lg p-2 hover:bg-slate-50">Settings</Link>}<button type="button" onClick={logout} className="mt-2 flex w-full items-center gap-2 rounded-lg p-2 text-left text-red-600 hover:bg-red-50"><LogOut size={16}/>Log out</button></div>}

@@ -1,6 +1,6 @@
 "use client";
 import { useMemo,useState } from "react";
-import { Search, MessageCircle, RefreshCw, UserRound, Inbox, CheckCheck } from "lucide-react";
+import { Search, MessageCircle, UserRound } from "lucide-react";
 import MessengerReply from "@/components/facebook/MessengerReply";
 import InboxRefresh from "@/components/facebook/InboxRefresh";
 
@@ -21,7 +21,7 @@ export default function MessengerInbox({conversations,pageId,externalPageId,canR
  const active=threads.find(t=>t.raw.id===selectedId)||threads[0];
  const messages=[...(active?.raw.messages?.data||[])].sort((a,b)=>(new Date(a.created_time||0).getTime()||0)-(new Date(b.created_time||0).getTime()||0));
  return <section aria-label="Messenger inbox" className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-  <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3"><MessageCircle size={19} className="text-blue-600"/><h2 className="font-semibold">Inbox</h2><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Messenger</span><span className="ml-auto text-xs text-slate-500">{threads.length} recent conversations</span><InboxRefresh/></div>
+  <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3"><MessageCircle size={19} className="text-blue-600"/><h2 className="font-semibold">Inbox</h2><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Messenger</span><span className="ml-auto text-xs text-slate-500">{threads.length} recent conversations from Meta</span><InboxRefresh/></div>
   <div className="grid min-h-[580px] min-w-0 lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_220px]">
    <div className="min-w-0 border-b border-slate-200 lg:border-b-0 lg:border-r">
     <div className="space-y-3 border-b border-slate-100 p-4"><label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"><Search size={17} className="text-slate-400"/><input aria-label="Search conversations" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search conversations" className="min-w-0 w-full bg-transparent text-sm outline-none"/></label><div className="flex gap-2">{(["all","recent"] as const).map(f=><button key={f} type="button" onClick={()=>setFilter(f)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${filter===f?"bg-blue-100 text-blue-700":"bg-slate-100 text-slate-600"}`}>{f==="all"?"All messages":"Last 7 days"}</button>)}</div></div>

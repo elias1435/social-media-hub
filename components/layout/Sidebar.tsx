@@ -20,7 +20,7 @@ import {
   Settings,
   Headphones,
   ScrollText,
-  Menu, X, ArrowLeft,
+  Menu, X,
 } from "lucide-react";
 
 export const menuItems = [

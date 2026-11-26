@@ -26,7 +26,7 @@ export default async function Messages({searchParams}:{searchParams:Promise<{pag
  if(selected?.accessTokenCiphertext){
    try{
     const token=decryptToken(selected.accessTokenCiphertext);
-    const result=await graphGet<{data?:Conversation[]}>("/"+selected.externalAccountId+"/conversations",token,{platform:"messenger",fields:"id,updated_time,participants,messages.limit(10){id,message,created_time,from}",limit:"30"});
+    const result=await graphGet<{data?:Conversation[]}>("/"+selected.externalAccountId+"/conversations",token,{platform:"messenger",fields:"id,updated_time,participants,messages.limit(25){id,message,created_time,from}",limit:"30"});
     conversations=result.data||[];
    }catch(e){error=e instanceof Error?e.message:"Could not retrieve Messenger conversations";}
  }
