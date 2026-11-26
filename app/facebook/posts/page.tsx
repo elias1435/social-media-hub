@@ -1,3 +1,4 @@
+import {preferredPage} from "@/lib/workspace-page";
 import PageNavigation from "@/components/facebook/PageNavigation";
 import PostCard from "@/components/facebook/PostCard";
 import Link from "next/link";
@@ -11,7 +12,8 @@ type Post={id:string;message?:string;created_time?:string;permalink_url?:string;
 export default async function Posts({searchParams}:{searchParams:Promise<{page?:string}>}){
  const session=await auth();const params=await searchParams;
  const pages=session?.user?.organizationId?await prisma.socialAccount.findMany({where:{organizationId:session.user.organizationId,platform:"FACEBOOK",status:"CONNECTED"},select:{id:true,name:true,externalAccountId:true,accessTokenCiphertext:true}}):[];
- const selected=pages.find(p=>p.id===params.page)||pages[0];
+ const preferred=await preferredPage(session?.user?.id,session?.user?.organizationId);
+ const selected=pages.find(p=>p.id===(params.page||preferred))||pages[0];
  let posts:Post[]=[];let error="";
  if(selected?.accessTokenCiphertext){try{const token=decryptToken(selected.accessTokenCiphertext);const data=await graphGet<{data?:Post[]}>("/"+selected.externalAccountId+"/posts",token,{fields:"id,message,created_time,permalink_url,full_picture,status_type",limit:"40"});posts=data.data||[];}catch(e){error=e instanceof Error?e.message:"Could not load Page posts";}}
  return <AppShell><PageHeader title="Facebook Posts" description="Actual published content from your connected Pages." action={<Link href={selected?"/facebook/create-post?page="+selected.id:"/facebook/create-post"} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">+ Create Post</Link>}/>

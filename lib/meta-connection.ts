@@ -29,7 +29,7 @@ export async function graphGet<T>(path: string, token: string, params: Record<st
   // Never allow Meta pagination to make requests to another host.
   if (url.origin !== new URL(GRAPH).origin) throw new Error("Unexpected Graph API host");
   for (const [name, value] of Object.entries(params)) url.searchParams.set(name, value);
-  const res = await fetch(url, { headers: { Authorization: "Bearer " + token }, cache: "no-store" });
+  const res = await fetch(url, { headers: { Authorization: "Bearer " + token }, cache: "no-store", signal: AbortSignal.timeout(15000) });
   const data = await res.json();
   if (!res.ok || data.error) throw new Error(data.error?.message || "Meta Graph API request failed");
   return data as T;

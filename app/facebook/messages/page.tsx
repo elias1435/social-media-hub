@@ -1,3 +1,4 @@
+import {preferredPage} from "@/lib/workspace-page";
 import MessengerInbox from "@/components/facebook/MessengerInbox";
 import MessengerPagePicker from "@/components/facebook/MessengerPagePicker";
 
@@ -21,7 +22,8 @@ export default async function Messages({searchParams}:{searchParams:Promise<{pag
  if(!allowed)return <AppShell><PageHeader title="Facebook Messenger" description="Access permissions"/><div className="rounded-xl border border-amber-200 bg-white p-6 text-sm">Your workspace role does not include View Facebook Messages. Ask an administrator to grant facebook.messages.view under Team / Roles.</div></AppShell>;
  const canReply=await hasOrgPermission(userId!,org!,"facebook.messages.reply");
  const pages=await prisma.socialAccount.findMany({where:{organizationId:org!,platform:"FACEBOOK",status:"CONNECTED"},select:{id:true,name:true,externalAccountId:true,accessTokenCiphertext:true},orderBy:{name:"asc"}});
- const selected=pages.find(p=>p.id===page)||pages[0];
+ const preferred=await preferredPage(session?.user?.id,session?.user?.organizationId);
+ const selected=pages.find(p=>p.id===(page||preferred))||pages[0];
  let conversations:Conversation[]=[];let error="";
  if(selected?.accessTokenCiphertext){
    try{

@@ -1,3 +1,4 @@
+import {preferredPage} from "@/lib/workspace-page";
 import CommentModerate from "@/components/facebook/CommentModerate";
 import PageNavigation from "@/components/facebook/PageNavigation";
 import CommentReply from "@/components/facebook/CommentReply";
@@ -11,8 +12,9 @@ export const dynamic="force-dynamic";
 type Comment={id:string;message?:string;created_time?:string;from?:{name?:string};permalink_url?:string;is_hidden?:boolean};
 type Post={id:string;message?:string};
 export default async function Comments({searchParams}:{searchParams:Promise<{page?:string}>}){
- const {page}=await searchParams;
+ const {page:requested}=await searchParams;
  const session=await auth();
+ const page=requested||await preferredPage(session?.user?.id,session?.user?.organizationId);
  const accounts=session?.user?.organizationId?await prisma.socialAccount.findMany({where:{organizationId:session.user.organizationId,platform:"FACEBOOK",status:"CONNECTED"},select:{id:true,name:true,externalAccountId:true,accessTokenCiphertext:true}}):[];
  const sections:{page:string;accountId:string;comments:Comment[]}[]= [];const errors:string[]=[];
  for(const account of (page?accounts.filter(a=>a.id===page):accounts)){
@@ -21,10 +23,10 @@ export default async function Comments({searchParams}:{searchParams:Promise<{pag
    const token=decryptToken(account.accessTokenCiphertext);
    const feed=await graphGet<{data?:Post[]}>("/"+account.externalAccountId+"/posts",token,{fields:"id,message",limit:"10"});
    const all:Comment[]=[];
-   for(const post of feed.data||[]){
+   await Promise.all((feed.data||[]).map(async post=>{
     try{const c=await graphGet<{data?:Comment[]}>("/"+post.id+"/comments",token,{fields:"id,message,created_time,from,permalink_url,is_hidden",limit:"20"});all.push(...(c.data||[]));}
     catch{errors.push("Some comments for "+account.name+" could not be retrieved.");}
-   }
+   }));
    sections.push({page:account.name,accountId:account.id,comments:all});
   }catch{errors.push("Meta could not load comments for "+account.name+". Check pages_read_user_content permissions.");}
  }
