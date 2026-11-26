@@ -6,11 +6,13 @@ This release adds additive Prisma tables for invitations, settings, notification
 
 **GitHub Actions verifies the build but does not deploy to Hostinger.** Hostinger's Git integration must deploy `main`.
 
-The `npm run build` script now generates Prisma; `npm start` runs `prisma migrate deploy` before starting Next.js. Confirm Hostinger actually runs `npm start`. If Hostinger uses its own custom start command, explicitly run `npx prisma migrate deploy` before starting the new app. Back up the production MySQL database first.
+Hostinger does NOT run `npm start` (it starts the standalone server directly). Migrations run during `npm run build` only when the environment variable `DEPLOY_ENV=production` is set in Hostinger. Preview, CI and local builds skip the build-time migration step; CI still explicitly tests migrations against its isolated MySQL service. If a migration fails, the build fails and the previous version stays live.
+
+Set `DEPLOY_ENV=production` only in the production build environment. Ensure preview builds do not inherit this setting before enabling it. Before merging schema changes, take a Hostinger database backup.
 
 1. Back up the database and record its restore point.
 2. Confirm Node.js 22 and correct production `DATABASE_URL`.
-3. Configure the environment variables below securely in Hostinger, not in GitHub or client-side configuration.
+3. Configure the environment variables below securely in Hostinger, not in GitHub or client-side configuration. Set `DEPLOY_ENV=production` in the production Hostinger environment variables, and verify it is not set for previews.
 4. Deploy the commit and verify `npx prisma migrate status` and application logs.
 5. Visit `https://social.ashikinternational.com/api/version` to verify release (this is not a migration status check).
 6. Test login, existing Facebook Page connections, Post publishing, Messenger inbox, role editor, user invite, and settings.
