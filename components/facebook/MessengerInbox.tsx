@@ -3,6 +3,7 @@ import { useMemo,useState } from "react";
 import { Search, MessageCircle, UserRound } from "lucide-react";
 import MessengerReply from "@/components/facebook/MessengerReply";
 import InboxRefresh from "@/components/facebook/InboxRefresh";
+import MessengerThreadPanel from "@/components/facebook/MessengerThreadPanel";
 
 export type Participant={name?:string;id?:string};
 export type Conversation={id:string;updated_time?:string;participants?:{data?:Participant[]};messages?:{data?:Array<{id?:string;message?:string;created_time?:string;from?:Participant}>}};
@@ -34,7 +35,7 @@ export default function MessengerInbox({conversations,pageId,externalPageId,canR
      <div className="border-t border-slate-200 bg-white px-4 pb-4">{active.participant?.id&&canReply?<MessengerReply key={active.raw.id} accountId={pageId} conversationId={active.raw.id} recipientId={active.participant.id}/>:<p className="p-4 text-sm text-slate-500">{!canReply?"Your role can view conversations, but cannot reply.":"A reply recipient was not returned by Meta."}</p>}</div>
     </>}
    </div>
-   <aside className="hidden border-l border-slate-200 xl:block"><div className="border-b border-slate-200 p-5"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-600"><UserRound size={30}/></div><h3 className="mt-3 break-words text-center font-semibold">{active?.participant?.name||"Messenger contact"}</h3><p className="mt-1 text-center text-xs text-slate-500">Conversation information</p></div><div className="space-y-4 p-5 text-xs"><p className="font-semibold text-slate-800">Facebook Messenger</p><p className="text-slate-500">Last updated</p><p className="font-medium text-slate-800">{prettyDate(active?.raw.updated_time)||"Unavailable"}</p><p className="text-slate-500">Only profile information returned by the authorized Meta API is displayed. Customer profiles and order data are not stored here.</p></div></aside>
+   <aside className="hidden border-l border-slate-200 xl:block"><div className="border-b border-slate-200 p-5"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-600"><UserRound size={30}/></div><h3 className="mt-3 break-words text-center font-semibold">{active?.participant?.name||"Messenger contact"}</h3><p className="mt-1 text-center text-xs text-slate-500">Conversation information</p></div><div className="space-y-4 p-5 text-xs"><p className="font-semibold text-slate-800">Facebook Messenger</p><p className="text-slate-500">Last updated</p><p className="font-medium text-slate-800">{prettyDate(active?.raw.updated_time)||"Unavailable"}</p><p className="text-slate-500">Only profile information returned by the authorized Meta API is displayed. Customer profiles and order data are not stored here.</p><div className="border-t border-slate-100 pt-4">{active&&<MessengerThreadPanel key={active.raw.id} accountId={pageId} conversationId={active.raw.id} canEdit={canReply}/>}</div></div></aside>
   </div>
  </section>
 }
