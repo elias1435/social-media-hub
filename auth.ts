@@ -129,18 +129,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.userId;
-
-        session.user.organizationId = token.organizationId;
-        session.user.organizationName = token.organizationName;
-
-        session.user.roleId = token.roleId;
-        session.user.roleKey = token.roleKey;
-        session.user.roleName = token.roleName;
-
-        session.user.isSystemAdmin = token.isSystemAdmin;
+        // Refresh authority from the database so suspensions and role changes
+        // take effect without waiting for an existing JWT to expire.
+        const user = token.userId ? await prisma.user.findUnique({
+          where: { id: token.userId as string },
+          include: { memberships: { include: { organization: true, role: true }, take: 1 } },
+        }).catch(() => null) : null;
+        const member = user?.memberships[0];
+        if (!user || user.status !== "ACTIVE" || !member || member.organization.status !== "ACTIVE") {
+          session.user.id = "";
+          session.user.organizationId = "";
+          session.user.organizationName = "";
+          session.user.roleId = "";
+          session.user.roleKey = "";
+          session.user.roleName = "";
+          session.user.isSystemAdmin = false;
+        } else {
+          session.user.id = user.id;
+          session.user.name = user.name || "User";
+          session.user.email = user.email;
+          session.user.organizationId = member.organizationId;
+          session.user.organizationName = member.organization.name;
+          session.user.roleId = member.roleId;
+          session.user.roleKey = member.role.key;
+          session.user.roleName = member.role.name;
+          session.user.isSystemAdmin = user.isSystemAdmin;
+        }
       }
-
       return session;
     },
   },
