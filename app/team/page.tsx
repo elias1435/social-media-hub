@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 import CreateUserForm from "@/components/users/CreateUserForm";
+import AppShell from "@/components/layout/AppShell";
 
 export default async function TeamPage() {
   const session = await auth();
@@ -14,11 +15,11 @@ export default async function TeamPage() {
 
   if (!session.user.isSystemAdmin) {
     return (
-      <div className="p-6">
+      <AppShell><div className="p-6">
         <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-600">
           You do not have permission to manage users.
         </div>
-      </div>
+      </div></AppShell>
     );
   }
 
@@ -63,7 +64,7 @@ export default async function TeamPage() {
     ]);
 
   return (
-    <div className="space-y-6 p-6">
+    <AppShell><div className="space-y-6 p-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">
           Team / Users
@@ -139,6 +140,6 @@ export default async function TeamPage() {
           </table>
         </div>
       </div>
-    </div>
+    </div></AppShell>
   );
 }
