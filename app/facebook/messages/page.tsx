@@ -1,6 +1,6 @@
-import InboxRefresh from "@/components/facebook/InboxRefresh";
+import MessengerInbox from "@/components/facebook/MessengerInbox";
 import MessengerPagePicker from "@/components/facebook/MessengerPagePicker";
-import MessengerReply from "@/components/facebook/MessengerReply";
+
 import PageNavigation from "@/components/facebook/PageNavigation";
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/PageHeader";
@@ -35,29 +35,11 @@ export default async function Messages({searchParams}:{searchParams:Promise<{pag
   {selected&&<PageNavigation accountId={selected.id} active="inbox"/>}
   <div className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
    {pages.length>0?<MessengerPagePicker pages={pages.map(p=>({id:p.id,name:p.name}))} selectedId={selected!.id}/>:<p className="text-sm text-slate-500">No Facebook Pages connected.</p>}
-   <InboxRefresh/>
+
    {selected&&<span className="pb-2 text-xs text-slate-500">{conversations.length} recent conversations</span>}
   </div>
   {!canReply&&<div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">Read-only access: your role can view conversations but cannot reply. Ask an administrator to grant facebook.messages.reply.</div>}
   {error&&<div role="alert" className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 break-words">{error}. Confirm pages_messaging, Page tasks and Meta app access.</div>}
-  {!selected?<div className="rounded-xl border border-slate-200 bg-white p-6 text-sm">Connect a Facebook Page first.</div>:
-   conversations.length===0?<div className="rounded-xl border border-slate-200 bg-white p-7"><h2 className="font-bold">No conversations returned</h2><p className="mt-2 text-sm text-slate-600">Try another connected Page or refresh. App Review and messaging windows may restrict access to some conversations.</p></div>:
-   <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-    {conversations.map(conversation=>{
-     const participant=conversation.participants?.data?.find(p=>p.id&&p.id!==selected.externalAccountId);
-     return <section key={conversation.id} className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <h2 className="break-words font-semibold text-slate-900">{participant?.name||"Messenger conversation"}</h2>
-      <p className="mt-1 text-xs text-slate-400">Updated: {conversation.updated_time?new Date(conversation.updated_time).toLocaleString():"Unknown"}</p>
-      <div className="mt-4 space-y-3">
-       {(conversation.messages?.data||[]).slice().reverse().map((message,index)=><div key={message.id||index} className="min-w-0 max-w-full rounded-lg bg-slate-50 p-3">
-        <p className="break-words text-xs font-semibold text-slate-800">{message.from?.name||"Participant"}</p>
-        <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700" style={{overflowWrap:"anywhere"}}>{message.message||"Attachment or non-text message"}</p>
-        <p className="mt-2 text-xs text-slate-400">{message.created_time?new Date(message.created_time).toLocaleString():""}</p>
-       </div>)}
-      </div>
-      {participant?.id&&canReply&&<MessengerReply accountId={selected.id} conversationId={conversation.id} recipientId={participant.id}/>}
-     </section>
-    })}
-   </div>}
+  {!selected?<div className="rounded-xl border border-slate-200 bg-white p-6 text-sm">Connect a Facebook Page first.</div>:conversations.length===0?<div className="rounded-xl border border-slate-200 bg-white p-7"><h2 className="font-bold">No conversations returned</h2><p className="mt-2 text-sm text-slate-600">Try another connected Page or refresh. App Review and messaging windows may restrict access to some conversations.</p></div>:<MessengerInbox conversations={conversations} pageId={selected.id} externalPageId={selected.externalAccountId} canReply={canReply}/>}
  </AppShell>;
 }
