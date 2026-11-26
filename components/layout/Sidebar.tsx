@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import {
   LayoutDashboard,
   PanelsTopLeft,
@@ -19,9 +20,10 @@ import {
   Settings,
   Headphones,
   ScrollText,
+  Menu, X, ArrowLeft,
 } from "lucide-react";
 
-const menuItems = [
+export const menuItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
   { label: "Facebook Pages", icon: PanelsTopLeft, href: "/facebook" },
   { label: "Instagram Accounts", icon: Camera, href: "/instagram" },
@@ -43,17 +45,27 @@ const bottomItems = [
   { label: "Settings", icon: Settings, href: "/settings" },
 ];
 
+export const permissionByRoute:Record<string,string> = {"/":"dashboard.view","/facebook":"facebook.pages.view","/instagram":"social_accounts.view","/youtube":"social_accounts.view","/whatsapp":"social_accounts.view","/ads-manager":"ads.view","/post-video":"facebook.posts.create","/content-planner":"facebook.posts.view","/facebook/comments":"facebook.comments.view","/facebook/messages":"facebook.messages.view","/analytics":"analytics.view","/team":"users.manage","/roles-permissions":"roles.manage","/activity-logs":"activity_logs.view","/connected-accounts":"social_accounts.view","/settings":"settings.view"};
+
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export default function Sidebar() {
+export default function Sidebar({permissions,systemAdmin}:{permissions:string[];systemAdmin:boolean}) {
   const pathname = usePathname();
+  const [mobileOpen,setMobileOpen]=useState(false);
+  const allowed=(href:string)=>systemAdmin||permissions.includes(permissionByRoute[href]||"__unavailable__");
+  const visibleMenu=menuItems.filter(item=>allowed(item.href));
+  const visibleBottom=bottomItems.filter(item=>allowed(item.href));
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[260px] flex-col bg-[#102b47] text-white lg:flex">
+    <>
+    <button type="button" aria-label="Open navigation" onClick={()=>setMobileOpen(true)} className="fixed bottom-5 left-5 z-50 rounded-full bg-[#102b47] p-3 text-white shadow-lg lg:hidden"><Menu size={23}/></button>
+    {mobileOpen&&<button type="button" aria-label="Close menu overlay" onClick={()=>setMobileOpen(false)} className="fixed inset-0 z-40 bg-black/50 lg:hidden"/>}
+    <aside className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[#102b47] text-white transition-transform lg:translate-x-0 ${mobileOpen?"translate-x-0":"-translate-x-full"}`}>
       <div className="border-b border-white/10 px-5 py-5">
+        <button type="button" onClick={()=>setMobileOpen(false)} aria-label="Close navigation" className="float-right lg:hidden"><X size={20}/></button>
         <Link href="/" className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-lg font-black text-blue-600">AI</div>
           <div>
@@ -66,13 +78,14 @@ export default function Sidebar() {
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <div className="space-y-1">
-          {menuItems.map((item) => {
+          {visibleMenu.map((item) => {
             const Icon = item.icon;
             const active = isActive(pathname, item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={()=>setMobileOpen(false)}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
                   active ? "bg-blue-600 text-white" : "text-slate-200 hover:bg-white/10"
                 }`}
@@ -87,7 +100,7 @@ export default function Sidebar() {
         <div className="my-4 border-t border-white/10" />
 
         <div className="space-y-1">
-          {bottomItems.map((item) => {
+          {visibleBottom.map((item) => {
             const Icon = item.icon;
             const active = isActive(pathname, item.href);
             return (
@@ -118,5 +131,6 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }
