@@ -8,11 +8,11 @@ type Page={id:string;name:string};
 type UploadResponse={ok?:boolean;error?:string;sessionToken?:string;start?:number;end?:number;chunkLimit?:number;videoId?:string;note?:string};
 const MB=1024*1024;
 
-export default function VideoUploader({pages,selected}:{pages:Page[];selected?:string}){
+export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[];selected?:string;scheduleDate?:string}){
  const [pageId,setPageId]=useState(selected&&pages.some(p=>p.id===selected)?selected:pages[0]?.id||"");
  const [description,setDescription]=useState("");
- const [mode,setMode]=useState<"now"|"schedule">("now");
- const [scheduleAt,setScheduleAt]=useState("");
+ const [mode,setMode]=useState<"now"|"schedule">(scheduleDate?"schedule":"now");
+ const [scheduleAt,setScheduleAt]=useState(scheduleDate?scheduleDate+"T12:00":"");
  const [file,setFile]=useState<File|null>(null);
  const [busy,setBusy]=useState(false);
  const [progress,setProgress]=useState(0);
@@ -55,7 +55,7 @@ export default function VideoUploader({pages,selected}:{pages:Page[];selected?:s
    const finished=await postJson({action:"finish",accountId:pageId,sessionToken:init.sessionToken,description,mode,scheduleAt:mode==="schedule"?new Date(scheduleAt).toISOString():undefined});
    setProgress(100);
    toast.success(finished.note||"Video upload submitted to Meta");
-   setDescription("");setFile(null);router.refresh();
+   setDescription("");setFile(null);if(scheduleDate)router.push("/content-planner?page="+encodeURIComponent(pageId));router.refresh();
   }catch(e){
     const message=e instanceof Error?e.message:"Video upload failed";
     setError(message);toast.error("Video upload did not complete");
