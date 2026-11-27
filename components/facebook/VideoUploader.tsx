@@ -1,5 +1,6 @@
 "use client";
 import { FormEvent,useState } from "react";
+import {CheckCircle2,ExternalLink,RefreshCw,Plus,CalendarDays} from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import ThumbnailPicker from "@/components/facebook/ThumbnailPicker";
@@ -14,7 +15,7 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
  const [description,setDescription]=useState("");
  const [mode,setMode]=useState<"now"|"schedule">(scheduleDate?"schedule":"now");
  const [scheduleAt,setScheduleAt]=useState(scheduleDate?scheduleDate+"T12:00":"");
- const [completed,setCompleted]=useState<{sessionToken:string;accountId:string;videoId?:string}|null>(null);
+ const [completed,setCompleted]=useState<{sessionToken:string;accountId:string;videoId?:string;scheduled:boolean;scheduledAt:string}|null>(null);
  const [coverAccepted,setCoverAccepted]=useState(false);
  const [coverBusy,setCoverBusy]=useState(false);
  const [thumbnail,setThumbnail]=useState<File|null>(null);
@@ -73,7 +74,7 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
    if(thumbnail){const form=new FormData();for(const [key,value] of Object.entries(payload))if(value!==undefined)form.set(key,value);form.set("thumbnail",thumbnail);const res=await fetch("/api/facebook/video",{method:"POST",body:form});finished=await res.json();if(!res.ok)throw Error(finished.error||"Video publishing failed");}else finished=await postJson(payload);
    setProgress(100);
    toast.success(finished.note||"Video upload submitted to Meta");
-   if(thumbnail){setCompleted({sessionToken:init.sessionToken,accountId:pageId,videoId:finished.videoId});setCoverAccepted(false);}else{setDescription("");setFile(null);if(scheduleDate)router.push("/content-planner?page="+encodeURIComponent(pageId));router.refresh();}
+   setCompleted({sessionToken:init.sessionToken,accountId:pageId,videoId:finished.videoId||init.videoId,scheduled:mode==="schedule",scheduledAt:scheduleAt});setCoverAccepted(false);
   }catch(e){
     const message=e instanceof Error?e.message:"Video upload failed";
     setError(message+(message.includes("finish")?" Check Facebook before trying again to avoid duplicate publication.":""));toast.error("Video upload did not complete");
@@ -88,12 +89,33 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
    setCoverAccepted(true);toast.success("Meta accepted the thumbnail update. Check the displayed cover on Facebook.");
   }catch(e){toast.warning(e instanceof Error?e.message:"Cover update could not be confirmed.");}finally{setCoverBusy(false);}
  }
+ function resetUpload(){
+  setCompleted(null);setThumbnail(null);setCoverAccepted(false);setFile(null);setDescription("");setProgress(0);setPhase("");setError("");
+  setMode(scheduleDate?"schedule":"now");setScheduleAt(scheduleDate?scheduleDate+"T12:00":"");
+ }
+ if(completed)return <section className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+  <div className="flex flex-col items-center text-center">
+   <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><CheckCircle2 size={34}/></div>
+   <h2 className="text-xl font-bold tracking-tight text-slate-900">{completed.scheduled?"Video scheduling accepted":"Video successfully submitted"}</h2>
+   <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">Meta accepted your video for processing. {completed.scheduled?"Publication is scheduled, subject to Meta processing.":"Publication and cover rendering may take additional time."}</p>
+   <p className="mt-3 rounded-full bg-slate-100 px-4 py-1.5 text-xs font-semibold text-slate-700">{pages.find(p=>p.id===completed.accountId)?.name||"Facebook Page"}</p>
+   {completed.scheduled&&<p className="mt-3 flex items-center gap-2 text-sm text-slate-600"><CalendarDays size={16}/>{new Date(completed.scheduledAt).toLocaleString()}</p>}
+  </div>
+  <div className="mt-6 border-t border-slate-100 pt-5"><ThumbnailPicker file={thumbnail} onChange={next=>{setThumbnail(next);setCoverAccepted(false);}} disabled={coverBusy}/></div>
+  <p role="status" className="mt-3 text-xs leading-5 text-slate-500">{coverAccepted?"Meta accepted the thumbnail update. Verify the displayed cover on Facebook.":"If you want to change the cover, select an image and update the thumbnail. This does not publish another video."}</p>
+  <div className="mt-6 space-y-3">
+   {completed.videoId&&<a target="_blank" rel="noopener noreferrer" href={"https://www.facebook.com/"+encodeURIComponent(completed.videoId)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-50"><ExternalLink size={17}/>View video on Facebook</a>}
+   <button type="button" disabled={!thumbnail||coverBusy} onClick={()=>void applyCover()} className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><RefreshCw size={17} className={coverBusy?"animate-spin":""}/>{coverBusy?"Updating thumbnail…":"Update thumbnail"}</button>
+   <button type="button" disabled={coverBusy} onClick={resetUpload} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"><Plus size={18}/>Upload another video</button>
+   {completed.scheduled&&<button type="button" disabled={coverBusy} onClick={()=>router.push("/content-planner?page="+encodeURIComponent(completed.accountId))} className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50">Return to Content Planner</button>}
+  </div>
+ </section>;
  return pages.length?<form onSubmit={submit} className="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
   <label className="block text-sm font-semibold">Page<select disabled={busy||Boolean(completed)} className="mt-2 w-full rounded-lg border border-slate-200 p-3" value={pageId} onChange={e=>setPageId(e.target.value)}>{pages.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
   <label className="block text-sm font-semibold">Description<textarea disabled={busy||Boolean(completed)} rows={4} maxLength={5000} value={description} onChange={e=>setDescription(e.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 p-3 font-normal"/></label>
   <label className="block text-sm font-semibold">Video (MP4/MOV, chunked upload)<input disabled={busy||Boolean(completed)} required type="file" accept="video/mp4,video/quicktime" className="mt-2 block w-full rounded-lg border border-slate-200 p-3 text-sm font-normal" onChange={e=>{setFile(e.target.files?.[0]||null);setProgress(0);setError("");}}/></label>
   <ThumbnailPicker file={thumbnail} onChange={next=>{setThumbnail(next);setCoverAccepted(false);}} disabled={busy||coverBusy}/>
-  {completed&&<section role="status" className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm"><p className="font-semibold text-emerald-900">Video submission accepted by Meta</p><p className="text-slate-700">{coverAccepted?"Meta accepted the cover update. Confirm the displayed image after processing.":"Your custom thumbnail is retained here. If Facebook has not applied it after processing, use Apply thumbnail again. This updates the same video, not a new post."}</p>{completed.videoId&&<a className="block font-semibold text-blue-700 underline" target="_blank" rel="noopener noreferrer" href={"https://www.facebook.com/"+encodeURIComponent(completed.videoId)}>View video on Facebook</a>}<div className="flex flex-wrap gap-2"><button type="button" disabled={!thumbnail||coverBusy} onClick={()=>void applyCover()} className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50">{coverBusy?"Applying…":"Apply thumbnail again"}</button><button type="button" disabled={coverBusy} onClick={()=>{setCompleted(null);setThumbnail(null);setCoverAccepted(false);setFile(null);setDescription("");setProgress(0);setError("");if(scheduleDate)router.push("/content-planner?page="+encodeURIComponent(pageId));}} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold">Done</button></div></section>}
+
   <fieldset disabled={busy||Boolean(completed)} className="space-y-2 rounded-lg border border-slate-200 p-4"><legend className="px-2 text-sm font-semibold">Publishing options</legend><label className="flex items-center gap-2 text-sm"><input type="radio" checked={mode==="now"} onChange={()=>setMode("now")}/>Publish video now</label><label className="flex items-center gap-2 text-sm"><input type="radio" checked={mode==="schedule"} onChange={()=>setMode("schedule")}/>Schedule video</label>{mode==="schedule"&&<label className="block text-sm font-medium">Scheduled time (local)<input type="datetime-local" value={scheduleAt} onChange={e=>setScheduleAt(e.target.value)} required className="mt-2 block w-full rounded-lg border border-slate-200 p-3"/><span className="mt-2 block text-xs text-slate-500">11 minutes to 29 days ahead. Video processing may take additional time.</span></label>}</fieldset>
   {file&&<p className="text-sm text-slate-600">Selected file: {(file.size/MB).toFixed(1)} MB</p>}
   {busy&&<div role="status"><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-600 transition-all" style={{width:progress+"%"}}/></div><p className="mt-2 text-xs font-medium text-slate-600">{phase} {progress}% — Keep this page open.</p></div>}
