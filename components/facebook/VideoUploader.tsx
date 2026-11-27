@@ -14,6 +14,9 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
  const [description,setDescription]=useState("");
  const [mode,setMode]=useState<"now"|"schedule">(scheduleDate?"schedule":"now");
  const [scheduleAt,setScheduleAt]=useState(scheduleDate?scheduleDate+"T12:00":"");
+ const [completed,setCompleted]=useState<{sessionToken:string;accountId:string;videoId?:string}|null>(null);
+ const [coverAccepted,setCoverAccepted]=useState(false);
+ const [coverBusy,setCoverBusy]=useState(false);
  const [thumbnail,setThumbnail]=useState<File|null>(null);
  const [file,setFile]=useState<File|null>(null);
  const [busy,setBusy]=useState(false);
@@ -29,7 +32,7 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
    return data;
  }
  async function submit(event:FormEvent<HTMLFormElement>){
-  event.preventDefault();if(!file||!pageId||busy)return;
+  event.preventDefault();if(!file||!pageId||busy||completed)return;
   if(mode==="schedule"){const when=new Date(scheduleAt).getTime();if(!Number.isFinite(when)||when<Date.now()+11*60000||when>Date.now()+29*86400000){setError("Choose a time between 11 minutes and 29 days from now.");return;}}
   if(!window.confirm(mode==="schedule"?"Upload and schedule this Facebook video?":"Upload and publish this Facebook video?"))return;
   setBusy(true);setError("");setProgress(0);
@@ -70,23 +73,32 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
    if(thumbnail){const form=new FormData();for(const [key,value] of Object.entries(payload))if(value!==undefined)form.set(key,value);form.set("thumbnail",thumbnail);const res=await fetch("/api/facebook/video",{method:"POST",body:form});finished=await res.json();if(!res.ok)throw Error(finished.error||"Video publishing failed");}else finished=await postJson(payload);
    setProgress(100);
    toast.success(finished.note||"Video upload submitted to Meta");
-   if(finished.thumbnailWarning)toast.warning(finished.thumbnailWarning,{duration:12000});
-   setThumbnail(null);setDescription("");setFile(null);if(scheduleDate)router.push("/content-planner?page="+encodeURIComponent(pageId));router.refresh();
+   if(thumbnail){setCompleted({sessionToken:init.sessionToken,accountId:pageId,videoId:finished.videoId});setCoverAccepted(false);}else{setDescription("");setFile(null);if(scheduleDate)router.push("/content-planner?page="+encodeURIComponent(pageId));router.refresh();}
   }catch(e){
     const message=e instanceof Error?e.message:"Video upload failed";
     setError(message+(message.includes("finish")?" Check Facebook before trying again to avoid duplicate publication.":""));toast.error("Video upload did not complete");
   }finally{setBusy(false);}
  }
+ async function applyCover(){
+  if(!completed||!thumbnail||coverBusy)return;
+  setCoverBusy(true);setCoverAccepted(false);
+  try{const form=new FormData();form.set("action","thumbnail");form.set("accountId",completed.accountId);form.set("sessionToken",completed.sessionToken);form.set("thumbnail",thumbnail);
+   const res=await fetch("/api/facebook/video",{method:"POST",body:form});const result=await res.json();
+   if(!res.ok||!result.thumbnailApplied)throw Error(result.error||"Meta did not confirm the cover request.");
+   setCoverAccepted(true);toast.success("Meta accepted the thumbnail update. Check the displayed cover on Facebook.");
+  }catch(e){toast.warning(e instanceof Error?e.message:"Cover update could not be confirmed.");}finally{setCoverBusy(false);}
+ }
  return pages.length?<form onSubmit={submit} className="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
-  <label className="block text-sm font-semibold">Page<select disabled={busy} className="mt-2 w-full rounded-lg border border-slate-200 p-3" value={pageId} onChange={e=>setPageId(e.target.value)}>{pages.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-  <label className="block text-sm font-semibold">Description<textarea disabled={busy} rows={4} maxLength={5000} value={description} onChange={e=>setDescription(e.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 p-3 font-normal"/></label>
-  <label className="block text-sm font-semibold">Video (MP4/MOV, chunked upload)<input disabled={busy} required type="file" accept="video/mp4,video/quicktime" className="mt-2 block w-full rounded-lg border border-slate-200 p-3 text-sm font-normal" onChange={e=>{setFile(e.target.files?.[0]||null);setProgress(0);setError("");}}/></label>
-  <ThumbnailPicker file={thumbnail} onChange={setThumbnail} disabled={busy}/>
-  <fieldset disabled={busy} className="space-y-2 rounded-lg border border-slate-200 p-4"><legend className="px-2 text-sm font-semibold">Publishing options</legend><label className="flex items-center gap-2 text-sm"><input type="radio" checked={mode==="now"} onChange={()=>setMode("now")}/>Publish video now</label><label className="flex items-center gap-2 text-sm"><input type="radio" checked={mode==="schedule"} onChange={()=>setMode("schedule")}/>Schedule video</label>{mode==="schedule"&&<label className="block text-sm font-medium">Scheduled time (local)<input type="datetime-local" value={scheduleAt} onChange={e=>setScheduleAt(e.target.value)} required className="mt-2 block w-full rounded-lg border border-slate-200 p-3"/><span className="mt-2 block text-xs text-slate-500">11 minutes to 29 days ahead. Video processing may take additional time.</span></label>}</fieldset>
+  <label className="block text-sm font-semibold">Page<select disabled={busy||Boolean(completed)} className="mt-2 w-full rounded-lg border border-slate-200 p-3" value={pageId} onChange={e=>setPageId(e.target.value)}>{pages.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+  <label className="block text-sm font-semibold">Description<textarea disabled={busy||Boolean(completed)} rows={4} maxLength={5000} value={description} onChange={e=>setDescription(e.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 p-3 font-normal"/></label>
+  <label className="block text-sm font-semibold">Video (MP4/MOV, chunked upload)<input disabled={busy||Boolean(completed)} required type="file" accept="video/mp4,video/quicktime" className="mt-2 block w-full rounded-lg border border-slate-200 p-3 text-sm font-normal" onChange={e=>{setFile(e.target.files?.[0]||null);setProgress(0);setError("");}}/></label>
+  <ThumbnailPicker file={thumbnail} onChange={next=>{setThumbnail(next);setCoverAccepted(false);}} disabled={busy||coverBusy}/>
+  {completed&&<section role="status" className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm"><p className="font-semibold text-emerald-900">Video submission accepted by Meta</p><p className="text-slate-700">{coverAccepted?"Meta accepted the cover update. Confirm the displayed image after processing.":"Your custom thumbnail is retained here. If Facebook has not applied it after processing, use Apply thumbnail again. This updates the same video, not a new post."}</p>{completed.videoId&&<a className="block font-semibold text-blue-700 underline" target="_blank" rel="noopener noreferrer" href={"https://www.facebook.com/"+encodeURIComponent(completed.videoId)}>View video on Facebook</a>}<div className="flex flex-wrap gap-2"><button type="button" disabled={!thumbnail||coverBusy} onClick={()=>void applyCover()} className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50">{coverBusy?"Applying…":"Apply thumbnail again"}</button><button type="button" disabled={coverBusy} onClick={()=>{setCompleted(null);setThumbnail(null);setCoverAccepted(false);setFile(null);setDescription("");setProgress(0);setError("");if(scheduleDate)router.push("/content-planner?page="+encodeURIComponent(pageId));}} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold">Done</button></div></section>}
+  <fieldset disabled={busy||Boolean(completed)} className="space-y-2 rounded-lg border border-slate-200 p-4"><legend className="px-2 text-sm font-semibold">Publishing options</legend><label className="flex items-center gap-2 text-sm"><input type="radio" checked={mode==="now"} onChange={()=>setMode("now")}/>Publish video now</label><label className="flex items-center gap-2 text-sm"><input type="radio" checked={mode==="schedule"} onChange={()=>setMode("schedule")}/>Schedule video</label>{mode==="schedule"&&<label className="block text-sm font-medium">Scheduled time (local)<input type="datetime-local" value={scheduleAt} onChange={e=>setScheduleAt(e.target.value)} required className="mt-2 block w-full rounded-lg border border-slate-200 p-3"/><span className="mt-2 block text-xs text-slate-500">11 minutes to 29 days ahead. Video processing may take additional time.</span></label>}</fieldset>
   {file&&<p className="text-sm text-slate-600">Selected file: {(file.size/MB).toFixed(1)} MB</p>}
   {busy&&<div role="status"><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-600 transition-all" style={{width:progress+"%"}}/></div><p className="mt-2 text-xs font-medium text-slate-600">{phase} {progress}% — Keep this page open.</p></div>}
   {error&&<div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"><p className="font-semibold">Video could not be published</p><p className="mt-2">{error}</p><Link href={"/facebook/"+pageId+"/diagnostics"} className="mt-3 inline-block font-semibold underline">Check Page permissions</Link></div>}
   <p className="rounded-lg bg-blue-50 p-3 text-xs text-blue-900">Large videos are transferred in smaller parts to Meta. There is no 20 MB portal cap; Meta's file size, duration, format and processing limits still apply. Standard Page videos are supported. Reels use a separate Meta publishing flow.</p>
-  <button disabled={!file||busy||(mode==="schedule"&&!scheduleAt)} className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">{busy?"Uploading…":mode==="schedule"?"Schedule video":"Upload video"}</button>
+  <button disabled={Boolean(completed)||!file||busy||(mode==="schedule"&&!scheduleAt)} className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">{busy?"Uploading…":mode==="schedule"?"Schedule video":"Upload video"}</button>
  </form>:<div className="rounded-xl border border-slate-200 bg-white p-6"><p className="text-sm">Connect a Facebook Page first.</p><Link href="/connected-accounts/meta" className="mt-3 inline-block text-sm font-semibold text-blue-600">Connect Page</Link></div>;
 }
