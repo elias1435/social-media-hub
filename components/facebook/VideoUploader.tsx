@@ -2,10 +2,11 @@
 import { FormEvent,useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import ThumbnailPicker from "@/components/facebook/ThumbnailPicker";
 import { useRouter } from "next/navigation";
 
 type Page={id:string;name:string};
-type UploadResponse={ok?:boolean;error?:string;sessionToken?:string;start?:number;end?:number;chunkLimit?:number;videoId?:string;note?:string};
+type UploadResponse={ok?:boolean;error?:string;sessionToken?:string;start?:number;end?:number;chunkLimit?:number;videoId?:string;note?:string;thumbnailApplied?:boolean;thumbnailWarning?:string};
 const MB=1024*1024;
 
 export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[];selected?:string;scheduleDate?:string}){
@@ -13,6 +14,7 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
  const [description,setDescription]=useState("");
  const [mode,setMode]=useState<"now"|"schedule">(scheduleDate?"schedule":"now");
  const [scheduleAt,setScheduleAt]=useState(scheduleDate?scheduleDate+"T12:00":"");
+ const [thumbnail,setThumbnail]=useState<File|null>(null);
  const [file,setFile]=useState<File|null>(null);
  const [busy,setBusy]=useState(false);
  const [progress,setProgress]=useState(0);
@@ -52,10 +54,13 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
      start=data.start;end=data.end;
      setProgress(Math.min(99,Math.floor((start/file.size)*100)));
    }
-   const finished=await postJson({action:"finish",accountId:pageId,sessionToken:init.sessionToken,description,mode,scheduleAt:mode==="schedule"?new Date(scheduleAt).toISOString():undefined});
+   const payload={action:"finish",accountId:pageId,sessionToken:init.sessionToken,description,mode,scheduleAt:mode==="schedule"?new Date(scheduleAt).toISOString():undefined};
+   let finished:UploadResponse;
+   if(thumbnail){const form=new FormData();for(const [key,value] of Object.entries(payload))if(value!==undefined)form.set(key,value);form.set("thumbnail",thumbnail);const res=await fetch("/api/facebook/video",{method:"POST",body:form});finished=await res.json();if(!res.ok)throw Error(finished.error||"Video publishing failed");}else finished=await postJson(payload);
    setProgress(100);
    toast.success(finished.note||"Video upload submitted to Meta");
-   setDescription("");setFile(null);if(scheduleDate)router.push("/content-planner?page="+encodeURIComponent(pageId));router.refresh();
+   if(finished.thumbnailWarning)toast.warning(finished.thumbnailWarning,{duration:12000});
+   setThumbnail(null);setDescription("");setFile(null);if(scheduleDate)router.push("/content-planner?page="+encodeURIComponent(pageId));router.refresh();
   }catch(e){
     const message=e instanceof Error?e.message:"Video upload failed";
     setError(message);toast.error("Video upload did not complete");
@@ -65,6 +70,7 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
   <label className="block text-sm font-semibold">Page<select disabled={busy} className="mt-2 w-full rounded-lg border border-slate-200 p-3" value={pageId} onChange={e=>setPageId(e.target.value)}>{pages.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
   <label className="block text-sm font-semibold">Description<textarea disabled={busy} rows={4} maxLength={5000} value={description} onChange={e=>setDescription(e.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 p-3 font-normal"/></label>
   <label className="block text-sm font-semibold">Video (MP4/MOV, chunked upload)<input disabled={busy} required type="file" accept="video/mp4,video/quicktime" className="mt-2 block w-full rounded-lg border border-slate-200 p-3 text-sm font-normal" onChange={e=>{setFile(e.target.files?.[0]||null);setProgress(0);setError("");}}/></label>
+  <ThumbnailPicker file={thumbnail} onChange={setThumbnail} disabled={busy}/>
   <fieldset disabled={busy} className="space-y-2 rounded-lg border border-slate-200 p-4"><legend className="px-2 text-sm font-semibold">Publishing options</legend><label className="flex items-center gap-2 text-sm"><input type="radio" checked={mode==="now"} onChange={()=>setMode("now")}/>Publish video now</label><label className="flex items-center gap-2 text-sm"><input type="radio" checked={mode==="schedule"} onChange={()=>setMode("schedule")}/>Schedule video</label>{mode==="schedule"&&<label className="block text-sm font-medium">Scheduled time (local)<input type="datetime-local" value={scheduleAt} onChange={e=>setScheduleAt(e.target.value)} required className="mt-2 block w-full rounded-lg border border-slate-200 p-3"/><span className="mt-2 block text-xs text-slate-500">11 minutes to 29 days ahead. Video processing may take additional time.</span></label>}</fieldset>
   {file&&<p className="text-sm text-slate-600">Selected file: {(file.size/MB).toFixed(1)} MB</p>}
   {busy&&<div role="status"><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-600 transition-all" style={{width:progress+"%"}}/></div><p className="mt-2 text-xs font-medium text-slate-600">Uploading: {progress}% — Keep this page open.</p></div>}
