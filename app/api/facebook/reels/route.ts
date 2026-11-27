@@ -2,12 +2,19 @@ import {NextRequest,NextResponse} from "next/server";
 import {auth} from "@/auth";
 import {prisma} from "@/lib/prisma";
 import {decryptToken} from "@/lib/meta-connection";
+import {THUMBNAIL_LIMIT,validThumbnail,setVideoThumbnail} from "@/lib/video-thumbnail";
 import {hasOrgPermission} from "@/lib/permissions";
 const fail=(error:string,status=400)=>NextResponse.json({error},{status});
 export async function POST(request:NextRequest){
  const session=await auth(),org=session?.user?.organizationId,user=session?.user?.id;
  if(!org||!user||!await hasOrgPermission(user,org,"facebook.posts.publish"))return fail("Forbidden",403);
- const b=await request.json().catch(()=>null);
+ let b:Record<string,unknown>|null=null,thumbnail:File|null=null;
+ if((request.headers.get("content-type")||"").includes("multipart/form-data")){
+  if(Number(request.headers.get("content-length")||0)>THUMBNAIL_LIMIT+100000)return fail("Thumbnail exceeds 8 MB.",413);
+  const form=await request.formData().catch(()=>null);if(!form)return fail("Invalid Reel form.");
+  b=Object.fromEntries(["accountId","videoUrl","description","mode","scheduleAt"].map(key=>[key,form.get(key)]));
+  const cover=form.get("thumbnail");if(cover!==null){if(!(cover instanceof File)||!await validThumbnail(cover))return fail("Invalid thumbnail. Choose a JPG or PNG up to 8 MB.");thumbnail=cover;}
+ }else b=await request.json().catch(()=>null);
  const accountId=typeof b?.accountId==="string"?b.accountId:"";
  const description=typeof b?.description==="string"?b.description.trim():"";
  const videoUrl=typeof b?.videoUrl==="string"?b.videoUrl.trim():"";
@@ -39,7 +46,8 @@ export async function POST(request:NextRequest){
   const finish=await fetch(api,{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/x-www-form-urlencoded"},body,cache:"no-store"});
   const result=await finish.json().catch(()=>({}));
   if(!finish.ok||result.success!==true)throw new Error(result.error?.message||"Meta has not confirmed Reel publishing.");
-  await prisma.activityLog.create({data:{organizationId:org,actorUserId:user,action:mode==="schedule"?"FACEBOOK_POST_SCHEDULED":"FACEBOOK_REEL_PUBLISHED",entityType:"SocialAccount",entityId:accountId,details:{videoId:String(created.video_id),mediaType:"reel",scheduledAt}}}).catch(()=>{});
-  return NextResponse.json({ok:true,videoId:String(created.video_id),scheduled:mode==="schedule",note:mode==="schedule"?"Meta accepted scheduled Reel; processing and publication should be verified.":"Meta accepted Reel; processing may continue."});
+  const thumbnailApplied=thumbnail?await setVideoThumbnail(String(created.video_id),token,thumbnail):undefined;
+  await prisma.activityLog.create({data:{organizationId:org,actorUserId:user,action:mode==="schedule"?"FACEBOOK_POST_SCHEDULED":"FACEBOOK_REEL_PUBLISHED",entityType:"SocialAccount",entityId:accountId,details:{videoId:String(created.video_id),mediaType:"reel",scheduledAt,...(thumbnailApplied===undefined?{}:{thumbnailApplied})}}}).catch(()=>{});
+  return NextResponse.json({ok:true,videoId:String(created.video_id),scheduled:mode==="schedule",thumbnailApplied,thumbnailWarning:thumbnailApplied===false?"Reel accepted by Meta, but the custom cover was not confirmed. Do not upload it again; check the cover in Meta.":undefined,note:mode==="schedule"?"Meta accepted scheduled Reel; processing and publication should be verified.":"Meta accepted Reel; processing may continue."});
  }catch(e){return fail(e instanceof Error?e.message:"Reel publishing could not be confirmed.",422);}
 }
