@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptToken } from "@/lib/meta-connection";
-import {validThumbnail,setVideoThumbnail} from "@/lib/video-thumbnail";
+import {validThumbnail} from "@/lib/video-thumbnail";
 import { hasOrgPermission } from "@/lib/permissions";
 
 export const runtime = "nodejs";
@@ -48,7 +48,7 @@ async function metaPost(pageId:string, token:string, body:URLSearchParams | Form
     body,cache:"no-store"
   });
   const result=await response.json().catch(()=>({})) as MetaResult;
-  if(!response.ok || result.error)throw new Error(result.error?.message||"Meta rejected the video upload step.");
+  if(!response.ok || result.error){const phase=String(body.get("upload_phase")||"unknown");const code=result.error?.code;const subcode=result.error?.error_subcode;const detail=result.error?.message?.replace(/(?:https?:\/\/\S+|access_token\s*[=:]\s*\S+|Bearer\s+\S+)/gi,"[redacted]")||"Meta did not return a detailed error.";throw new Error("Meta "+phase+" failed (HTTP "+response.status+(code!==undefined?", code "+code:"")+(subcode!==undefined?", subcode "+subcode:"")+"). "+detail); }
   return result;
 }
 function offsets(result:MetaResult) {
@@ -133,15 +133,17 @@ export async function POST(request:NextRequest) {
       params.set("scheduled_publish_time",String(unix));
       scheduledAt=when.toISOString();
     }
-    const result=await metaPost(account.externalAccountId,pageToken,params);
+    let finishBody:URLSearchParams|FormData=params;
+    if(thumbnail){const form=new FormData();params.forEach((value,key)=>form.set(key,value));form.set("thumb",thumbnail,thumbnail.type==="image/png"?"thumbnail.png":"thumbnail.jpg");finishBody=form;}
+    const result=await metaPost(account.externalAccountId,pageToken,finishBody);
     if(result.success!==true&&!(result.id||result.video_id))throw new Error("Meta has not confirmed video publication.");
-    const thumbnailApplied=thumbnail?await setVideoThumbnail(value.videoId,pageToken,thumbnail):undefined;
+    const thumbnailSubmitted=Boolean(thumbnail);
     await prisma.activityLog.create({data:{
       organizationId:org,actorUserId:userId,action:mode==="schedule"?"FACEBOOK_POST_SCHEDULED":"FACEBOOK_VIDEO_UPLOADED",
       entityType:"SocialAccount",entityId:account.id,
-      details:{videoId:value.videoId,fileSize:value.total,uploadMethod:"CHUNKED",mediaType:"video",mode,scheduledAt,...(thumbnailApplied===undefined?{}:{thumbnailApplied})}
+      details:{videoId:value.videoId,fileSize:value.total,uploadMethod:"CHUNKED",mediaType:"video",mode,scheduledAt,thumbnailSubmitted}
     }}).catch(error=>console.error("Video activity log failure",error));
-    return NextResponse.json({ok:true,videoId:value.videoId,scheduled:mode==="schedule",thumbnailApplied,thumbnailWarning:thumbnailApplied===false?"Video accepted by Meta, but the custom thumbnail was not confirmed. Do not upload the video again; check its cover in Meta.":undefined,note:mode==="schedule"?"Meta accepted the scheduled video. Processing may still be underway.":"Meta accepted the video. Processing and publishing may still be underway."});
+    return NextResponse.json({ok:true,videoId:value.videoId,scheduled:mode==="schedule",thumbnailSubmitted,thumbnailWarning:thumbnailSubmitted?"Custom thumbnail submitted with the video. Verify the cover after Meta finishes processing.":undefined,note:mode==="schedule"?"Meta accepted the scheduled video. Processing may still be underway.":"Meta accepted the video. Processing and publishing may still be underway."});
   }catch(error){
     const message=error instanceof Error?error.message:"Meta video upload failed.";
     console.error("Facebook video upload step failed:",message);
