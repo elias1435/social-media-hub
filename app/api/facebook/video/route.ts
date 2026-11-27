@@ -18,6 +18,7 @@ type MetaResult = {
 };
 type SessionData = { accountId: string; organizationId: string; userId: string; uploadId: string; videoId: string; total: number; exp: number };
 const fail = (error: string, status = 400) => NextResponse.json({ error }, { status });
+class MetaUploadError extends Error { constructor(message:string,public status:number){super(message);} }
 
 function sessionSecret() {
   const secret = process.env.AUTH_SECRET;
@@ -45,10 +46,10 @@ async function metaPost(pageId:string, token:string, body:URLSearchParams | Form
   const response=await fetch(API+"/"+encodeURIComponent(pageId)+"/videos", {
     method:"POST",
     headers:{Authorization:"Bearer "+token,...(body instanceof URLSearchParams?{"Content-Type":"application/x-www-form-urlencoded"}:{})},
-    body,cache:"no-store"
+    body,cache:"no-store",signal:AbortSignal.timeout(90000)
   });
   const result=await response.json().catch(()=>({})) as MetaResult;
-  if(!response.ok || result.error){const phase=String(body.get("upload_phase")||"unknown");const code=result.error?.code;const subcode=result.error?.error_subcode;const detail=result.error?.message?.replace(/(?:https?:\/\/\S+|access_token\s*[=:]\s*\S+|Bearer\s+\S+)/gi,"[redacted]")||"Meta did not return a detailed error.";throw new Error("Meta "+phase+" failed (HTTP "+response.status+(code!==undefined?", code "+code:"")+(subcode!==undefined?", subcode "+subcode:"")+"). "+detail); }
+  if(!response.ok || result.error){const phase=String(body.get("upload_phase")||"unknown");const code=result.error?.code;const subcode=result.error?.error_subcode;const detail=result.error?.message?.replace(/(?:https?:\/\/\S+|access_token\s*[=:]\s*\S+|Bearer\s+\S+)/gi,"[redacted]")||"Meta did not return a detailed error.";throw new MetaUploadError("Meta "+phase+" failed (HTTP "+response.status+(code!==undefined?", code "+code:"")+(subcode!==undefined?", subcode "+subcode:"")+"). "+detail,response.status); }
   return result;
 }
 function offsets(result:MetaResult) {
@@ -147,6 +148,6 @@ export async function POST(request:NextRequest) {
   }catch(error){
     const message=error instanceof Error?error.message:"Meta video upload failed.";
     console.error("Facebook video upload step failed:",message);
-    return fail(message,422);
+    return fail(message,error instanceof MetaUploadError&&[429,500,502,503,504].includes(error.status)?503:422);
   }
 }
