@@ -18,6 +18,7 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
  const [file,setFile]=useState<File|null>(null);
  const [busy,setBusy]=useState(false);
  const [progress,setProgress]=useState(0);
+ const [phase,setPhase]=useState("");
  const [error,setError]=useState("");
  const router=useRouter();
 
@@ -33,6 +34,7 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
   if(!window.confirm(mode==="schedule"?"Upload and schedule this Facebook video?":"Upload and publish this Facebook video?"))return;
   setBusy(true);setError("");setProgress(0);
   try {
+   setPhase("Preparing upload session…");
    const init=await postJson({action:"start",accountId:pageId,fileSize:file.size});
    if(!init.sessionToken||init.start===undefined||init.end===undefined)throw new Error("Meta did not provide a usable upload session.");
    let start=init.start;
@@ -44,9 +46,17 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
      const form=new FormData();
      form.set("action","transfer");form.set("accountId",pageId);form.set("sessionToken",init.sessionToken);
      form.set("startOffset",String(start));form.set("chunk",file.slice(start,start+windowSize),"video-part.bin");
-     const response=await fetch("/api/facebook/video",{method:"POST",body:form});
-     const data=await response.json().catch(()=>({error:"Unexpected upload response"})) as UploadResponse;
-     if(!response.ok)throw new Error(data.error||"Chunk transfer failed");
+     let data:UploadResponse|undefined;
+     for(let retry=0;retry<4;retry++){
+      setPhase(retry?"Retrying transfer ("+retry+"/3)…":"Transferring video…");
+      let response:Response;
+      try{response=await fetch("/api/facebook/video",{method:"POST",body:form});}catch{if(retry===3)throw Error("Network transfer interrupted. Check your connection.");await new Promise(r=>setTimeout(r,1000*2**retry));continue;}
+      const result=await response.json().catch(()=>({error:"Unexpected upload response"})) as UploadResponse;
+      if(response.ok){data=result;break;}
+      if(![429,500,502,503,504].includes(response.status)||retry===3)throw Error(result.error||"Chunk transfer failed (HTTP "+response.status+")");
+      await new Promise(r=>setTimeout(r,1000*2**retry));
+     }
+     if(!data)throw Error("Transfer could not be confirmed.");
      if(typeof data.start!=="number"||typeof data.end!=="number")throw new Error("Meta did not return upload offsets.");
      if(data.start<=start){
        if(++attempts>=3)throw new Error("Meta is not advancing the upload. Please retry.");
@@ -54,6 +64,7 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
      start=data.start;end=data.end;
      setProgress(Math.min(99,Math.floor((start/file.size)*100)));
    }
+   setPhase("Finalizing video"+(thumbnail?" and thumbnail":"")+"…");
    const payload={action:"finish",accountId:pageId,sessionToken:init.sessionToken,description,mode,scheduleAt:mode==="schedule"?new Date(scheduleAt).toISOString():undefined};
    let finished:UploadResponse;
    if(thumbnail){const form=new FormData();for(const [key,value] of Object.entries(payload))if(value!==undefined)form.set(key,value);form.set("thumbnail",thumbnail);const res=await fetch("/api/facebook/video",{method:"POST",body:form});finished=await res.json();if(!res.ok)throw Error(finished.error||"Video publishing failed");}else finished=await postJson(payload);
@@ -63,7 +74,7 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
    setThumbnail(null);setDescription("");setFile(null);if(scheduleDate)router.push("/content-planner?page="+encodeURIComponent(pageId));router.refresh();
   }catch(e){
     const message=e instanceof Error?e.message:"Video upload failed";
-    setError(message);toast.error("Video upload did not complete");
+    setError(message+(message.includes("finish")?" Check Facebook before trying again to avoid duplicate publication.":""));toast.error("Video upload did not complete");
   }finally{setBusy(false);}
  }
  return pages.length?<form onSubmit={submit} className="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
@@ -73,7 +84,7 @@ export default function VideoUploader({pages,selected,scheduleDate}:{pages:Page[
   <ThumbnailPicker file={thumbnail} onChange={setThumbnail} disabled={busy}/>
   <fieldset disabled={busy} className="space-y-2 rounded-lg border border-slate-200 p-4"><legend className="px-2 text-sm font-semibold">Publishing options</legend><label className="flex items-center gap-2 text-sm"><input type="radio" checked={mode==="now"} onChange={()=>setMode("now")}/>Publish video now</label><label className="flex items-center gap-2 text-sm"><input type="radio" checked={mode==="schedule"} onChange={()=>setMode("schedule")}/>Schedule video</label>{mode==="schedule"&&<label className="block text-sm font-medium">Scheduled time (local)<input type="datetime-local" value={scheduleAt} onChange={e=>setScheduleAt(e.target.value)} required className="mt-2 block w-full rounded-lg border border-slate-200 p-3"/><span className="mt-2 block text-xs text-slate-500">11 minutes to 29 days ahead. Video processing may take additional time.</span></label>}</fieldset>
   {file&&<p className="text-sm text-slate-600">Selected file: {(file.size/MB).toFixed(1)} MB</p>}
-  {busy&&<div role="status"><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-600 transition-all" style={{width:progress+"%"}}/></div><p className="mt-2 text-xs font-medium text-slate-600">Uploading: {progress}% — Keep this page open.</p></div>}
+  {busy&&<div role="status"><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-600 transition-all" style={{width:progress+"%"}}/></div><p className="mt-2 text-xs font-medium text-slate-600">{phase} {progress}% — Keep this page open.</p></div>}
   {error&&<div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"><p className="font-semibold">Video could not be published</p><p className="mt-2">{error}</p><Link href={"/facebook/"+pageId+"/diagnostics"} className="mt-3 inline-block font-semibold underline">Check Page permissions</Link></div>}
   <p className="rounded-lg bg-blue-50 p-3 text-xs text-blue-900">Large videos are transferred in smaller parts to Meta. There is no 20 MB portal cap; Meta's file size, duration, format and processing limits still apply. Standard Page videos are supported. Reels use a separate Meta publishing flow.</p>
   <button disabled={!file||busy||(mode==="schedule"&&!scheduleAt)} className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">{busy?"Uploading…":mode==="schedule"?"Schedule video":"Upload video"}</button>
