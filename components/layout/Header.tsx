@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Search, Bell, CircleHelp, ChevronDown, CalendarDays, LogOut, ArrowLeft } from "lucide-react";
 import { signOut } from "next-auth/react";
@@ -23,9 +23,13 @@ const extraRoutes=[
 export default function Header({permissions,systemAdmin,userName,roleName,pages,selectedPage,selectionKey,notifications}:Props){
  const router=useRouter(); const pathname=usePathname();
  const [search,setSearch]=useState("");
- const [activePage,setActivePage]=useState(selectedPage);
- useEffect(()=>{setActivePage(selectedPage)},[selectedPage]);
- function changePage(id:string){if(!selectionKey||!pages.some(p=>p.id===id))return;setActivePage(id);document.cookie=selectionKey+"="+encodeURIComponent(id)+"; Path=/; Max-Age=31536000; SameSite=Lax"+(location.protocol==="https:"?"; Secure":"");const url=new URL(location.href);if(/^\/facebook\/[^/]+(?:\/(?:activity|settings|diagnostics))?$/.test(pathname)&&!["/facebook/posts","/facebook/create-post","/facebook/upload-video","/facebook/comments","/facebook/messages","/facebook/dashboard","/facebook/overview"].includes(pathname)){router.push("/facebook/"+encodeURIComponent(id));return;}if(["/facebook/posts","/facebook/create-post","/facebook/upload-video","/facebook/comments","/facebook/messages","/content-planner","/analytics"].includes(pathname)){url.searchParams.set("page",id);router.push(url.pathname+url.search);}else router.refresh();}
+ const params=useSearchParams();
+ const scopedRoutes=["/facebook/posts","/facebook/create-post","/facebook/upload-video","/facebook/comments","/facebook/messages","/content-planner","/analytics"];
+ const pathId=pathname.match(/^\/facebook\/([^/]+)(?:\/(?:activity|settings|diagnostics))?$/)?.[1];
+ const routePage=scopedRoutes.includes(pathname)?params.get("page"):pathId;
+ const activePage=routePage==="all"&&["/analytics","/content-planner"].includes(pathname)?"all":pages.some(p=>p.id===routePage)?routePage!:selectedPage;
+ useEffect(()=>{if(selectionKey&&pages.some(p=>p.id===routePage))document.cookie=selectionKey+"="+encodeURIComponent(routePage!)+"; Path=/; Max-Age=31536000; SameSite=Lax"+(location.protocol==="https:"?"; Secure":"");},[routePage,selectionKey,pages]);
+ function changePage(id:string){if(!selectionKey||!pages.some(p=>p.id===id))return;document.cookie=selectionKey+"="+encodeURIComponent(id)+"; Path=/; Max-Age=31536000; SameSite=Lax"+(location.protocol==="https:"?"; Secure":"");const url=new URL(location.href);if(/^\/facebook\/[^/]+(?:\/(?:activity|settings|diagnostics))?$/.test(pathname)&&!["/facebook/posts","/facebook/create-post","/facebook/upload-video","/facebook/comments","/facebook/messages","/facebook/dashboard","/facebook/overview"].includes(pathname)){const suffix=pathname.split("/").slice(3).join("/");window.location.assign("/facebook/"+encodeURIComponent(id)+(suffix?"/"+suffix:""));return;}if(["/facebook/posts","/facebook/create-post","/facebook/upload-video","/facebook/comments","/facebook/messages","/content-planner","/analytics"].includes(pathname)){url.searchParams.set("page",id);window.location.assign(url.pathname+url.search);}else if(pathname==="/facebook/dashboard"){window.location.assign("/facebook/"+encodeURIComponent(id));}else window.location.reload();}
  const [open,setOpen]=useState<"search"|"notifications"|"help"|"profile"|"date"|null>(null);
  const [start,setStart]=useState("");
  const [end,setEnd]=useState("");
@@ -39,7 +43,7 @@ export default function Header({permissions,systemAdmin,userName,roleName,pages,
  const popClass="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-xl";
  return <header className="sticky top-0 z-30 flex min-h-[72px] flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
   <button type="button" aria-label="Go back" title="Go back" onClick={()=>window.history.length>1?router.back():router.push("/")} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><ArrowLeft size={19}/></button>
-  {pages.length>0&&<label className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"><span className="hidden sm:inline">Facebook Page</span><select aria-label="Active Facebook Page" className="max-w-[180px] bg-white text-sm text-slate-900 outline-none" value={activePage} onChange={e=>changePage(e.target.value)}>{pages.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>}
+  {pages.length>0&&<label className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"><span className="hidden sm:inline">Facebook Page</span><select aria-label="Active Facebook Page" className="max-w-[180px] bg-white text-sm text-slate-900 outline-none" value={activePage} onChange={e=>changePage(e.target.value)}>{activePage==="all"&&<option value="all" disabled>All Facebook Pages</option>}{pages.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>}
   <form onSubmit={e=>{e.preventDefault();if(matching[0]){router.push(matching[0].href);setSearch("");setOpen(null)}}} className="relative min-w-[140px] flex-1 lg:max-w-[470px]">
    <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"><Search size={18} className="shrink-0 text-slate-400"/><input aria-label="Search workspace pages" value={search} onFocus={()=>setOpen("search")} onChange={e=>{setSearch(e.target.value);setOpen("search")}} placeholder="Search features and pages…" className="min-w-0 w-full bg-transparent text-sm outline-none"/></label>
    {open==="search"&&search.trim()&&<div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">{matching.length?matching.map(item=><button key={item.href} type="button" onClick={()=>{router.push(item.href);setSearch("");setOpen(null)}} className="block w-full rounded-lg p-3 text-left text-sm hover:bg-slate-50">{item.label}</button>):<p className="p-3 text-sm text-slate-500">No permitted features found.</p>}</div>}
