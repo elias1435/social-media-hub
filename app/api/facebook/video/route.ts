@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptToken } from "@/lib/meta-connection";
+import {validThumbnail,setVideoThumbnail} from "@/lib/video-thumbnail";
 import { hasOrgPermission } from "@/lib/permissions";
 
 export const runtime = "nodejs";
@@ -67,15 +68,16 @@ export async function POST(request:NextRequest) {
 
   const contentType=request.headers.get("content-type")||"";
   let payload: {action?:string;accountId?:string;fileSize?:number;description?:string;mode?:string;scheduleAt?:string;sessionToken?:string;startOffset?:number};
-  let chunk:File|null=null;
+  let chunk:File|null=null,thumbnail:File|null=null;
   if(contentType.includes("multipart/form-data")){
     const length=Number(request.headers.get("content-length")||0);
     if(length>CHUNK_LIMIT+100000)return fail("This upload chunk exceeds the server's transfer limit.",413);
     const form=await request.formData().catch(()=>null);
     if(!form)return fail("Invalid upload chunk.");
-    payload={action:String(form.get("action")||""),accountId:String(form.get("accountId")||""),sessionToken:String(form.get("sessionToken")||""),startOffset:Number(form.get("startOffset"))};
+    payload={action:String(form.get("action")||""),accountId:String(form.get("accountId")||""),sessionToken:String(form.get("sessionToken")||""),startOffset:Number(form.get("startOffset")),description:String(form.get("description")||""),mode:String(form.get("mode")||""),scheduleAt:String(form.get("scheduleAt")||"")};
     const entry=form.get("chunk");
     chunk=entry instanceof File?entry:null;
+    const cover=form.get("thumbnail");if(cover!==null){if(!(cover instanceof File)||payload.action!=="finish"||!await validThumbnail(cover))return fail("Invalid thumbnail. Choose a JPG or PNG up to 8 MB.");thumbnail=cover;}
   } else if(contentType.includes("application/json")){
     payload=await request.json().catch(()=>({}));
   } else return fail("Unsupported request format.",415);
@@ -133,12 +135,13 @@ export async function POST(request:NextRequest) {
     }
     const result=await metaPost(account.externalAccountId,pageToken,params);
     if(result.success!==true&&!(result.id||result.video_id))throw new Error("Meta has not confirmed video publication.");
+    const thumbnailApplied=thumbnail?await setVideoThumbnail(value.videoId,pageToken,thumbnail):undefined;
     await prisma.activityLog.create({data:{
       organizationId:org,actorUserId:userId,action:mode==="schedule"?"FACEBOOK_POST_SCHEDULED":"FACEBOOK_VIDEO_UPLOADED",
       entityType:"SocialAccount",entityId:account.id,
-      details:{videoId:value.videoId,fileSize:value.total,uploadMethod:"CHUNKED",mediaType:"video",mode,scheduledAt}
+      details:{videoId:value.videoId,fileSize:value.total,uploadMethod:"CHUNKED",mediaType:"video",mode,scheduledAt,...(thumbnailApplied===undefined?{}:{thumbnailApplied})}
     }}).catch(error=>console.error("Video activity log failure",error));
-    return NextResponse.json({ok:true,videoId:value.videoId,scheduled:mode==="schedule",note:mode==="schedule"?"Meta accepted the scheduled video. Processing may still be underway.":"Meta accepted the video. Processing and publishing may still be underway."});
+    return NextResponse.json({ok:true,videoId:value.videoId,scheduled:mode==="schedule",thumbnailApplied,thumbnailWarning:thumbnailApplied===false?"Video accepted by Meta, but the custom thumbnail was not confirmed. Do not upload the video again; check its cover in Meta.":undefined,note:mode==="schedule"?"Meta accepted the scheduled video. Processing may still be underway.":"Meta accepted the video. Processing and publishing may still be underway."});
   }catch(error){
     const message=error instanceof Error?error.message:"Meta video upload failed.";
     console.error("Facebook video upload step failed:",message);
