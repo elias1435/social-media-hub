@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptToken } from "@/lib/meta-connection";
-import {validThumbnail} from "@/lib/video-thumbnail";
+import {validThumbnail,setVideoThumbnail} from "@/lib/video-thumbnail";
 import { hasOrgPermission } from "@/lib/permissions";
 
 export const runtime = "nodejs";
@@ -78,14 +78,14 @@ export async function POST(request:NextRequest) {
     payload={action:String(form.get("action")||""),accountId:String(form.get("accountId")||""),sessionToken:String(form.get("sessionToken")||""),startOffset:Number(form.get("startOffset")),description:String(form.get("description")||""),mode:String(form.get("mode")||""),scheduleAt:String(form.get("scheduleAt")||"")};
     const entry=form.get("chunk");
     chunk=entry instanceof File?entry:null;
-    const cover=form.get("thumbnail");if(cover!==null){if(!(cover instanceof File)||payload.action!=="finish"||!await validThumbnail(cover))return fail("Invalid thumbnail. Choose a JPG or PNG up to 8 MB.");thumbnail=cover;}
+    const cover=form.get("thumbnail");if(cover!==null){if(!(cover instanceof File)||!["finish","thumbnail"].includes(payload.action||"")||!await validThumbnail(cover))return fail("Invalid thumbnail. Choose a JPG or PNG up to 8 MB.");thumbnail=cover;}
   } else if(contentType.includes("application/json")){
     payload=await request.json().catch(()=>({}));
   } else return fail("Unsupported request format.",415);
 
   const action=payload.action;
   const accountId=payload.accountId||"";
-  if(!["start","transfer","finish"].includes(action||"")||!accountId)return fail("Invalid upload action.");
+  if(!["start","transfer","finish","thumbnail"].includes(action||"")||!accountId)return fail("Invalid upload action.");
   const account=await prisma.socialAccount.findFirst({where:{id:accountId,organizationId:org,platform:"FACEBOOK",status:"CONNECTED"}});
   if(!account?.accessTokenCiphertext)return fail("Facebook Page is not connected.",404);
   const pageToken=decryptToken(account.accessTokenCiphertext);
@@ -107,6 +107,12 @@ export async function POST(request:NextRequest) {
     if(!value||value.accountId!==accountId||value.organizationId!==org||value.userId!==userId)
       return fail("Upload session is invalid or expired. Start again.",403);
 
+    if(action==="thumbnail"){
+      if(!thumbnail)return fail("Choose a thumbnail.");
+      const applied=await setVideoThumbnail(value.videoId,pageToken,thumbnail);
+      if(!applied)return fail("Meta has not accepted the cover yet. The video does not need to be uploaded again.",409);
+      return NextResponse.json({ok:true,thumbnailApplied:true,videoId:value.videoId});
+    }
     if(action==="transfer"){
       const start=Number(payload.startOffset);
       if(!chunk||!chunk.size||chunk.size>CHUNK_LIMIT||!Number.isSafeInteger(start)||start<0||start+chunk.size>value.total)
@@ -144,7 +150,7 @@ export async function POST(request:NextRequest) {
       entityType:"SocialAccount",entityId:account.id,
       details:{videoId:value.videoId,fileSize:value.total,uploadMethod:"CHUNKED",mediaType:"video",mode,scheduledAt,thumbnailSubmitted}
     }}).catch(error=>console.error("Video activity log failure",error));
-    return NextResponse.json({ok:true,videoId:value.videoId,scheduled:mode==="schedule",thumbnailSubmitted,thumbnailWarning:thumbnailSubmitted?"Custom thumbnail submitted with the video. Verify the cover after Meta finishes processing.":undefined,note:mode==="schedule"?"Meta accepted the scheduled video. Processing may still be underway.":"Meta accepted the video. Processing and publishing may still be underway."});
+    return NextResponse.json({ok:true,videoId:value.videoId,scheduled:mode==="schedule",thumbnailSubmitted,note:mode==="schedule"?"Meta accepted the scheduled video. Processing may still be underway.":"Meta accepted the video. Processing and publishing may still be underway."});
   }catch(error){
     const message=error instanceof Error?error.message:"Meta video upload failed.";
     console.error("Facebook video upload step failed:",message);
