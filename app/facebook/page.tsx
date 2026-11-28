@@ -15,7 +15,7 @@ export default async function FacebookPages({ searchParams }: { searchParams: Pr
     orderBy: { updatedAt: "desc" },
     select: { id: true, name: true, externalAccountId: true, avatarUrl: true, status: true, updatedAt: true, metadata: true },
   }) : [];
-  const safePages = pages.map(p => {
+  const safePages = pages.filter(p=>!(p.status==="DISCONNECTED"&&(p.metadata as {hiddenFromFacebookList?:boolean}|null)?.hiddenFromFacebookList===true)).map(p => {
     const meta = p.metadata as { followersCount?: number | null } | null;
     return { id: p.id, name: p.name, externalAccountId: p.externalAccountId, avatarUrl: p.avatarUrl, status: p.status, updatedAt: p.updatedAt.toISOString(), followersCount: typeof meta?.followersCount === "number" ? meta.followersCount : null };
   });
